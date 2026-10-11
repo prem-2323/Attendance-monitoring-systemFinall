@@ -1,0 +1,6 @@
+{
+  "name": "Smart Attendance Monitoring System",
+  "description": "Enterprise AI attendance monitoring and smart approval system with face recognition, liveness detection, GPS geofencing, and role-based portals for Admins, Managers, and Employees.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
