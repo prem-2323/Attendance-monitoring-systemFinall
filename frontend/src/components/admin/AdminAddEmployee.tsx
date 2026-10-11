@@ -296,7 +296,7 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
           <div className="flex flex-col items-center">
             {/* Camera View Box */}
             <div className="relative h-64 w-80 overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 shadow-inner flex items-center justify-center">
-              {capturedPhotoUrl ? (
+              {capturedPhotoUrl?.trim() ? (
                 <div className="relative h-full w-full">
                   <img
                     src={capturedPhotoUrl}

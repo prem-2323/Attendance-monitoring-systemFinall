@@ -689,7 +689,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "employee", "attendance", "mark"]
             },
-            "description": "Demonstrates automatic rejection when eye-blink liveness verification fails."
+            "description": "Demonstrates automatic rejection when head-movement liveness verification fails."
           },
           "response": []
         },

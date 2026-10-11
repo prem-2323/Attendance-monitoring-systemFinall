@@ -1,0 +1,601 @@
+================================================================================
+          ATTENDANCE MONITORING SYSTEM - COMPLETE PROJECT WORKFLOW
+================================================================================
+Project: AI-Powered Biometric Face Attendance with GPS Geofencing & Smart Approval
+Version: 1.0.0
+Architecture: FastAPI (Python Backend) + React Vite (TypeScript Frontend) + MongoDB Atlas
+================================================================================
+
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+1. PROJECT OVERVIEW & ARCHITECTURAL SUMMARY
+2. SYSTEM ARCHITECTURE & DATA FLOW DIAGRAM
+3. TECHNOLOGY STACK & CORE DEPENDENCIES
+4. DATABASE ARCHITECTURE (MONGODB COLLECTIONS & SCHEMAS)
+5. COMPUTER VISION & BIOMETRIC PIPELINE (SSD MOBILENET + 68 LANDMARKS + EMBEDDINGS)
+6. GPS POLYGON GEOFENCING & LOCATION ENGINE
+7. SMART WORKING HOURS & DYNAMIC SHIFT LOGIC
+8. SMART APPROVAL & AUDIT LOGGING WORKFLOW
+9. STEP-BY-STEP ROLE WORKFLOWS:
+   9.1 System Administrator Workflow
+   9.2 Department Manager Workflow
+   9.3 Employee Workflow
+   9.4 User Registration & Onboarding Workflow
+   9.5 Authentication & Password Recovery Workflow
+   9.6 Reports & Analytical Audit Workflow
+10. API ROUTING & ENDPOINT DIRECTORY
+11. APPLICATION STARTUP & PROCESS LIFECYCLE
+
+
+================================================================================
+1. PROJECT OVERVIEW & ARCHITECTURAL SUMMARY
+================================================================================
+The Attendance Monitoring System (AMS) is an enterprise-grade biometric attendance
+platform designed to eliminate buddy punching, time theft, and fraudulent check-ins.
+It integrates three layers of verification:
+  1. Biometric Facial Recognition (SSD MobileNet V1 + 68 Landmark Alignment + 128-d
+     Deep Neural Network Face Embeddings).
+  2. Interactive Liveness Anti-Spoofing (challenge-response prompts checking eye
+     blinks and head turns to prevent photograph or screen replays).
+  3. Office GPS Geofence Box (mathematical ray-casting point-in-polygon verification
+     ensuring employees can only mark attendance inside authorized office grounds).
+
+The system serves three primary user personas:
+  - System Administrator: Full oversight, employee/manager directory management,
+    attendance regularization override, geofence polygon adjustments, and audit trail.
+  - Department Manager: Team oversight, daily attendance monitoring, leave request
+    approval/rejection with mandatory audit remarks, and team analytics.
+  - Staff Employee: Biometric check-in and check-out with GPS & liveness, flexible
+    smart hours tracking, attendance history calendar, and leave quota application.
+
+
+================================================================================
+2. SYSTEM ARCHITECTURE & DATA FLOW DIAGRAM
+================================================================================
+
++-------------------------------------------------------------------------------+
+|                             CLIENT / BROWSER TIER                            |
+|  - React 18 Single Page Application (Vite + TypeScript + Tailwind CSS)        |
+|  - HTML5 Geolocation API (Captures live device latitude & longitude)          |
+|  - HTML5 WebRTC MediaStream (Webcam video feed for real-time face detection)   |
++-------------------------------------------------------------------------------+
+                                      |
+                      HTTP REST Requests / JSON Payloads
+                      (CORS Enabled, Ports 3000 -> 8000)
+                                      v
++-------------------------------------------------------------------------------+
+|                            FASTAPI BACKEND SERVICE                            |
+|  - Main App (`backend/main.py`)                                               |
+|  - Authentication Router (`/api/auth`)                                        |
+|  - Admin Router (`/api/admin`)                                                |
+|  - Manager Router (`/api/manager`)                                            |
+|  - Employee Portal Router (`/api/employee`)                                   |
+|  - Reports Router (`/api/reports`)                                            |
+|  - Classic Biometrics Router (`/employee`, `/attendance`)                     |
++-------------------------------------------------------------------------------+
+           |                                       |
+           v                                       v
++-----------------------------+         +---------------------------------------+
+|  AI BIOMETRICS & VISION     |         |     CORE BUSINESS ENGINES             |
+|  - SSD MobileNet V1 Detector|         |  - Ray-Casting Geofence Engine        |
+|  - 68-Point Facial Landmarks|         |  - Smart Working Hours Calculator     |
+|  - 128-d Face Embeddings    |         |  - Smart Approval Decision Rules      |
+|  - Cosine / Euclidean Match |         |  - Immutable Audit Logger             |
++-----------------------------+         +---------------------------------------+
+           \                                       /
+            \                                     /
+             v                                   v
++-------------------------------------------------------------------------------+
+|                          DATA TIER (MONGODB ATLAS)                            |
+|  Collections:                                                                 |
+|  - users                 - attendance           - approval_requests           |
+|  - employees             - leave_requests       - approval_audits             |
+|  - settings              - reset_tokens                                       |
++-------------------------------------------------------------------------------+
+
+
+================================================================================
+3. TECHNOLOGY STACK & CORE DEPENDENCIES
+================================================================================
+Frontend:
+  - Framework: React 18 with TypeScript
+  - Build Tool: Vite
+  - Styling: Tailwind CSS, modern glassmorphic dashboard design
+  - Icons: Lucide React
+  - State Management: React Context API (`AppContext.tsx`)
+  - API Client: Modular fetch services (`authApi`, `adminApi`, `employeeApi`, `managerApi`)
+  - Hardware APIs: Navigator Geolocation, MediaDevices WebRTC
+
+Backend:
+  - Framework: FastAPI (Asynchronous Python ASGI framework)
+  - Web Server: Uvicorn (`uvicorn backend.main:app --reload`)
+  - Database Driver: PyMongo (with graceful fallback to mongomock if offline)
+  - Security & Crypto: Passlib / hashlib (SHA-256 + salt password hashing)
+  - Data Validation: Pydantic schemas
+
+Computer Vision & ML:
+  - OpenCV (opencv-python-headless): Image decoding, colour space transformation, DNN model execution
+  - Dlib / Face Recognition: 68-point facial landmark alignment, 128-d ResNet embeddings
+  - Caffe Models: SSD MobileNet V1 (`deploy.prototxt` + `res10_300x300_ssd_iter_140000.caffemodel`)
+  - Math & Geometry: Ray-casting point-in-polygon algorithm, Haversine formula calculation
+
+
+================================================================================
+4. DATABASE ARCHITECTURE (MONGODB COLLECTIONS & SCHEMAS)
+================================================================================
+The application connects to MongoDB Atlas using the URI specified in `backend/.env`.
+The primary collections and their document schemas are:
+
+1. `users` Collection:
+   Stores user profiles, roles, and hashed credentials.
+   - `id`: Unique user string (e.g., "user-adm-001", "user-emp-005")
+   - `name`: Full user name
+   - `employeeId`: Unique employee ID (e.g., "ADM001", "MGR001", "EMP005") [UNIQUE INDEX]
+   - `email`: Normalized lowercase email [UNIQUE INDEX]
+   - `phone`: Contact phone number
+   - `department`: e.g., "Engineering", "IT Operations", "Human Resources"
+   - `role`: "admin" | "manager" | "employee"
+   - `title`: Job title (e.g., "Software Engineer", "Engineering Lead")
+   - `managerId`: Associated manager's ID
+   - `managerName`: Name of the direct reporting manager
+   - `active`: Boolean flag
+   - `faceRegistered`: Boolean indicating biometric enrollment status
+   - `faceVector`: 128-d biometric embedding vector or passive enrollment token
+   - `avatarUrl`: Profile picture URL
+   - `password_hash`: Salted SHA-256 password hash
+   - `joinDate`: Date joined (YYYY-MM-DD)
+
+2. `employees` Collection:
+   Stores facial recognition records synchronized for computer vision search.
+   - `employee_id`: Unique identifier [UNIQUE INDEX]
+   - `name`: Employee name
+   - `face_embedding`: 128-float list of face landmarks
+   - `created_at`: Registration timestamp
+
+3. `attendance` Collection:
+   Stores daily check-in and check-out records.
+   - `id`: Unique record ID
+   - `employeeId`: Employee identifier [INDEXED with date]
+   - `name`: Employee name
+   - `department`: Employee department
+   - `date`: Attendance date (YYYY-MM-DD)
+   - `checkIn`: Timestamp of check-in (e.g., "09:12 AM")
+   - `checkOut`: Timestamp of check-out (e.g., "05:45 PM")
+   - `status`: "Present" | "Late" | "Half Day" | "Absent" | "On Leave"
+   - `approvalStatus`: "Approved" | "Pending" | "Rejected"
+   - `confidence`: Facial recognition confidence score (0.0 to 1.0)
+   - `verifiedBy`: "Face + GPS" | "Manual Override" | "System"
+   - `location`: Office premises name
+   - `coordinates`: `{ lat: float, lng: float }`
+   - `distanceMeters`: Distance from office centroid in metres
+   - `withinRadius`: Boolean
+   - `livenessVerified`: Boolean anti-spoof verification flag
+   - `hoursWorked`: Calculated duration (e.g., "8h 15m")
+   - `notes`: Optional regularization or audit notes
+
+4. `approval_requests` Collection:
+   Manages attendance regularization and manager review requests.
+   - `attendance_id`: ID of the corresponding attendance record
+   - `employee_id`: Identifier of the employee
+   - `status`: "Pending" | "Approved" | "Rejected"
+   - `approved_by`: Manager or Admin ID who took action
+   - `reason`: Justification note
+
+5. `leave_requests` Collection:
+   Tracks employee leave applications and manager approval decisions.
+   - `id`: Unique leave request ID
+   - `employeeId`: Employee applying for leave
+   - `name`: Employee full name
+   - `department`: Department
+   - `leaveType`: "Casual Leave" | "Sick Leave" | "Privilege Leave" | "WFH"
+   - `fromDate`: Start date (YYYY-MM-DD)
+   - `toDate`: End date (YYYY-MM-DD)
+   - `days`: Calculated duration in days
+   - `reason`: Employee justification
+   - `status`: "Pending" | "Approved" | "Rejected"
+   - `appliedOn`: Timestamp of submission
+   - `reviewedBy`: Manager ID
+   - `reviewedByName`: Manager full name
+   - `reviewedAt`: Timestamp of manager review
+   - `remarks`: Reviewer comments
+
+6. `approval_audits` Collection:
+   Immutable audit trail logging every administrative or managerial decision.
+   - `id`: Unique audit log identifier
+   - `type`: "Attendance Override" | "Leave Approval" | "Leave Rejection"
+   - `targetEmployeeId`: Employee whose record was modified
+   - `actorId`: Admin or Manager who performed the action
+   - `actorName`: Full name of actor
+   - `date`: Action timestamp
+   - `previousStatus`: Status prior to action
+   - `newStatus`: Status following action
+   - `reason`: Mandatory justification note
+
+7. `settings` Collection:
+   Global office location, geofence polygon vertices, and smart working hours.
+   - `key`: "global_settings"
+   - `officeLocation`:
+       * `name`: Office campus name
+       * `address`: Physical address
+       * `lat`: Centroid latitude
+       * `lng`: Centroid longitude
+       * `allowedRadiusMeters`: Fallback radius (default 150m)
+   - `geofencePolygon`: Array of polygon vertex coordinates `[{ lat, lng }, ...]`
+   - `smartHoursConfig`:
+       * `expectedHoursPerDay`: 8
+       * `graceCheckInMinutes`: 15
+       * `standardStartTime`: "09:00 AM"
+       * `flexibleWindowMinutes`: 180 (allowing 7:30 AM to 10:30 AM flex start)
+
+8. `reset_tokens` Collection:
+   Temporary One-Time Passwords (OTP) for password recovery.
+   - `identifier`: Email or Employee ID
+   - `code`: 4-digit numeric verification code
+   - `expires_at`: ISO timestamp (15-minute validity window)
+   - `used`: Boolean flag
+
+
+================================================================================
+5. COMPUTER VISION & BIOMETRIC PIPELINE
+================================================================================
+The facial recognition pipeline processes camera frames in sequential stages:
+
+Stage 1: Frame Acquisition
+  The React frontend captures a live video frame from the user webcam using the
+  HTML5 `navigator.mediaDevices.getUserMedia` API at 640x480 resolution.
+
+Stage 2: Face Detection (SSD MobileNet V1)
+  - Backend utilizes OpenCV's Deep Neural Network (DNN) module with Single Shot
+    MultiBox Detector (SSD) architecture and MobileNet backbone.
+  - The image is converted into a 300x300 Blob with mean subtraction (104.0, 177.0, 123.0).
+  - The model outputs bounding box coordinates `[x1, y1, x2, y2]` and confidence.
+  - Detections with confidence < 0.50 are filtered out.
+  - Fallback: If Caffe weights are not downloaded, OpenCV Haar Cascades
+    (`haarcascade_frontalface_default.xml`) automatically act as fallback detector.
+
+Stage 3: 68-Point Facial Landmark Detection & Alignment
+  - Using Dlib's `shape_predictor_68_face_landmarks.dat`, the model identifies
+    68 specific points across the jawline, eyebrows, nose bridge, eyes, and lips.
+  - Calculates the roll angle between left eye centre (landmarks 36-41) and right
+    eye centre (landmarks 42-47).
+  - Performs affine rotation to align the eyes horizontally and scales the face
+    to a standardized canonical reference frame.
+
+Stage 4: 128-Dimensional Deep Feature Embedding
+  - The aligned face crop is passed through a ResNet-based deep metric learning network.
+  - The network computes a 128-element normalized floating point vector representing
+    the unique biometric topography of the face.
+
+Stage 5: Distance Calculation & Identification
+  - For verification against an enrolled employee:
+    Calculates the Euclidean distance: d = sqrt(sum((v1_i - v2_i)^2))
+    Confidence is calculated as: Confidence = max(0.0, 1.0 - (d / 1.0))
+  - If d <= FACE_MATCH_THRESHOLD (default 0.55), the identity is a MATCH.
+  - If d > 0.55, the match is REJECTED.
+
+Stage 6: Interactive Liveness & Anti-Spoofing Challenge
+  To prevent static photo printouts, smartphone displays, or video replays:
+  - The frontend UI presents dynamic challenge instructions:
+    1. "Look straight at the camera" (verifies face frontal orientation).
+    2. "Blink your eyes" (verifies eye aspect ratio [EAR] drop and recovery).
+    3. "Turn your head slightly" (verifies 3D yaw orientation change).
+  - Both `withinRadius` and `livenessVerified` must be TRUE for the backend
+    to accept check-in. If `livenessVerified=False`, the backend immediately
+    rejects the request with `400 Bad Request: Liveness challenge failed`.
+
+
+================================================================================
+6. GPS POLYGON GEOFENCING & LOCATION ENGINE
+================================================================================
+Traditional attendance apps use simple radial circles, which can encompass public
+streets or neighboring buildings. AMS utilizes a 4-point office boundary polygon.
+
+Point-in-Polygon Mathematical Algorithm:
+  - Implemented in `backend/services/geofence.py` via the Ray-Casting algorithm.
+  - For an employee GPS coordinate (lat, lng):
+    1. Cast a horizontal ray starting from (lng, lat) extending to positive infinity.
+    2. Count how many times this ray intersects with the polygon perimeter edges.
+    3. If the intersection count is ODD: The employee is INSIDE the office box.
+    4. If the intersection count is EVEN: The employee is OUTSIDE the office box.
+    5. Points lying directly on boundary line segments are treated as inside.
+
+Dual-Layer Security Check:
+  - Client-Side: The React app queries the browser's Geolocation API. It evaluates
+    the point against `OFFICE_GEOFENCE_POLYGON` and displays a real-time GPS radar.
+  - Server-Side Re-Verification: The client sends `latitude` and `longitude`. The
+    FastAPI backend executes its own ray-casting verification on the server. If the
+    coordinates fall outside the polygon, the server aborts with:
+    `400 Bad Request: Outside office geofence box`.
+
+
+================================================================================
+7. SMART WORKING HOURS & DYNAMIC SHIFT LOGIC
+================================================================================
+The application accommodates modern flexible work culture while enforcing
+compliance:
+
+1. Standard Parameters:
+   - Standard Office Start Time: 09:00 AM
+   - Grace Check-In Window: 15 minutes (arrival up to 09:15 AM is marked "Present")
+   - Arrival between 09:16 AM and 10:30 AM: Marked "Late"
+   - Arrival after 10:30 AM: Marked "Half Day"
+   - Required Daily Working Hours: 8 Hours (480 minutes)
+
+2. Dynamic Shift Adjustment (Smart Hours):
+   - Rather than forcing rigid 5:00 PM checkout, checkout time is calculated dynamically:
+     `Expected Check-Out = Actual Check-In Time + 8 Hours`
+   - Example 1: Employee checks in at 08:30 AM -> Expected Check-out = 04:30 PM.
+   - Example 2: Employee checks in at 09:45 AM -> Expected Check-out = 05:45 PM.
+   - The Employee Portal (`EmployeeSmartHours.tsx`) and backend endpoint
+     (`/api/employee/smart-hours/{employeeId}`) continuously compute remaining hours,
+     overtime accrued, and shift completion percentage.
+
+
+================================================================================
+8. SMART APPROVAL & AUDIT LOGGING WORKFLOW
+================================================================================
+Attendance records and leave requests transition through automated rule gates:
+
+Attendance Classification Matrix:
+  +--------------------+---------------------+---------------------------------+
+  | Match Confidence   | Arrival Time        | Status Outcome                  |
+  +--------------------+---------------------+---------------------------------+
+  | >= 80% (High)      | On-time (<= 9:15 AM)| Auto-Approved ("Present")       |
+  | >= 80% (High)      | Late (> 9:15 AM)    | Auto-Approved ("Late")          |
+  | 65% - 79% (Medium) | Any time            | Pending Manager Review          |
+  | < 65% (Low)        | Any time            | Rejected (Unrecognized)         |
+  | Any confidence     | Outside Geofence    | Blocked (400 Geofence Violation)|
+  +--------------------+---------------------+---------------------------------+
+
+Immutable Audit Trail:
+  Whenever an Admin overrides an attendance record (e.g. marking an absent employee
+  present due to biometric glitch) or a Manager reviews a leave application:
+  1. The primary record in `attendance` or `leave_requests` is updated.
+  2. A tamper-proof document is inserted into `approval_audits` capturing:
+     - Actor ID and Name
+     - Target Employee ID
+     - Action Type ("Attendance Override", "Leave Approved", "Leave Rejected")
+     - Previous Status vs New Status
+     - Compulsory Reason / Justification
+     - Exact Timestamp
+  3. These audit logs are displayed in the Admin Audit Portal (`AdminApprovalAudit.tsx`).
+
+
+================================================================================
+9. STEP-BY-STEP ROLE WORKFLOWS
+================================================================================
+
+9.1 SYSTEM ADMINISTRATOR WORKFLOW:
+----------------------------------
+Step 1: Login
+  - Administrator navigates to `http://localhost:3000`.
+  - Enters Admin credentials (e.g. `admin@company.com` / `password123`).
+  - System verifies hash in `users` collection and loads the Admin Portal.
+
+Step 2: Executive Dashboard Monitoring
+  - Views real-time KPI cards: Total Staff, Present Today, Late Today, On Leave, Absent.
+  - Analyzes attendance percentage gauge and department-wise attendance bar chart.
+  - Reviews live chronological activity feed showing recent check-ins.
+
+Step 3: Employee Directory & Onboarding
+  - Clicks "Employees" in the sidebar to review the corporate roster.
+  - Clicks "Add Employee" to register a new hire.
+  - Fills in Name, Employee ID (e.g. EMP010), Email, Department, and assigns Manager.
+  - Performs biometric face enrollment (uploads face photo or registers face vector).
+  - Clicks "Save Employee"; record is written to both `users` and `employees` collections.
+
+Step 4: Department Manager Management
+  - Clicks "Managers" in sidebar.
+  - Adds new managers specifying their department jurisdiction.
+
+Step 5: Attendance Regularization & Override
+  - Navigates to "Attendance" -> "Today" or "History".
+  - Locates an employee record requiring modification.
+  - Clicks "Edit / Regularize". Selects new status (e.g. "Present"), enters a mandatory
+    administrative reason (e.g. "Biometric scanner lighting calibration error").
+  - Saves the record. The attendance document updates and an immutable record is
+    automatically written to `approval_audits`.
+
+Step 6: Office Geofence & Shift Configuration
+  - Navigates to "Settings".
+  - Reviews current office coordinates and 4-corner polygon vertices.
+  - Modifies office radius (e.g. 150m) or changes shift rules (expected hours, grace window).
+  - Updates persist directly to `settings` collection.
+
+Step 7: Audit Trail & Reports
+  - Reviews "Approval Audit" to monitor all manager and admin approvals.
+  - Navigates to "Reports" to run department-wide date-range analytics and export CSV reports.
+
+
+9.2 DEPARTMENT MANAGER WORKFLOW:
+--------------------------------
+Step 1: Login
+  - Manager enters credentials (e.g. `MGR001` or `manager@company.com` / `password123`).
+  - Backend verifies manager role and loads the Manager Portal.
+
+Step 2: Team Overview Dashboard
+  - Views metrics restricted to direct reports: Team Count, Present, Absent, Pending Leaves.
+  - Inspects today's live team attendance roster.
+
+Step 3: Team Directory & Performance Rates
+  - Reviews list of assigned employees, their contact details, and monthly attendance %.
+  - Inspects individual employee attendance history.
+
+Step 4: Leave Application Review & Approval
+  - Clicks "Leave Approval" tab.
+  - Reviews pending leave requests submitted by team members (dates, leave type, reason).
+  - Makes review decision:
+    * Click "Approve": Enters manager remarks (e.g. "Approved, project coverage confirmed").
+    * Click "Reject": Enters mandatory rejection reason (e.g. "Sprint deadline conflict").
+  - On submission:
+    * `leave_requests` status changes to "Approved" or "Rejected".
+    * `approval_audits` logs the transaction with manager name and remarks.
+    * If approved, the employee's attendance record for those dates marks "On Leave".
+
+
+9.3 EMPLOYEE WORKFLOW:
+----------------------
+Step 1: Login
+  - Employee logs in using Email or Employee ID (e.g. `EMP001` / `password123`).
+  - Directed to the Employee Dashboard.
+
+Step 2: Employee Dashboard Inspection
+  - Reviews monthly attendance rate, present count, leaves remaining, and today's status.
+
+Step 3: Biometric Check-In (Mark Attendance)
+  - Clicks "Mark Attendance" in sidebar.
+  - Stage A (GPS Location): Browser requests GPS location. The app evaluates coordinates
+    against the office geofence box. If within the box, GPS indicator turns green.
+  - Stage B (Camera Activation): User enables webcam. SSD MobileNet detects face.
+  - Stage C (Liveness Challenge): System prompts user:
+    1. "Stand directly in front of camera."
+    2. "Blink your eyes."
+    3. "Turn head slightly."
+  - Stage D (Biometric Match): Face embeddings are extracted and matched against enrolled vector.
+  - Stage E (Submission): Clicks "Confirm & Submit Check-In".
+    Backend validates GPS, liveness, and face match.
+    Attendance record created with status "Present" or "Late" and check-in timestamp.
+
+Step 4: Smart Hours Monitoring
+  - Clicks "Smart Working Hours".
+  - System displays arrival time, calculated 8-hour target checkout time, and live
+    countdown timer showing hours remaining in shift.
+
+Step 5: Biometric Check-Out
+  - At shift end, employee returns to "Mark Attendance" (toggled to Check-Out mode).
+  - Re-verifies face and GPS.
+  - Submits Check-Out. System computes `hoursWorked` (e.g. "8h 12m") and closes daily record.
+
+Step 6: Leave Management
+  - Clicks "Apply Leave".
+  - Views remaining leave quotas (Casual: 12, Sick: 8, Privilege: 15).
+  - Selects Leave Type, From Date, To Date, and types reason.
+  - Submits leave request (status set to "Pending" awaiting Manager review).
+  - Checks "Leave Status" to monitor manager decision and remarks.
+
+Step 7: Personal Profile Update
+  - Navigates to "Profile" to update phone number, avatar, or password.
+
+
+9.4 USER REGISTRATION & ONBOARDING WORKFLOW:
+--------------------------------------------
+1. Register Administrator (`POST /api/auth/register/admin`):
+   - Requires Name, Employee ID, Email, Password, and `securityPasskey`.
+   - The master security passkey must equal `AMS-ROOT-2026`.
+   - If incorrect, request is rejected with `403 Forbidden`.
+   - On success, account created with role `admin`.
+
+2. Register Department Manager (`POST /api/auth/register/manager`):
+   - Requires Name, Employee ID, Email, Department, Title, and Password.
+   - On success, account created with role `manager`.
+
+3. Register Employee (`POST /api/auth/register/employee`):
+   - Requires Name, Employee ID, Email, Department, Manager Name, Password, and
+     Biometric Face details (`faceRegistered: True`, `faceVector`).
+   - Automatically synchronizes to both `users` and `employees` collections.
+
+
+9.5 AUTHENTICATION & PASSWORD RECOVERY WORKFLOW:
+------------------------------------------------
+1. Login (`POST /api/auth/login`):
+   - Accepts `identifier` (Email or Employee ID) and `password`.
+   - Compares salted hash with stored `password_hash`.
+   - Returns sanitized user profile object and role.
+
+2. Forgot Password Flow:
+   - Step 1 (Request OTP): `POST /api/auth/forgot-password/request`
+     User provides Email or Employee ID. Backend generates 4-digit OTP, stores it
+     in `reset_tokens` with 15-minute expiry, and dispatches it in response.
+   - Step 2 (Verify OTP): `POST /api/auth/forgot-password/verify`
+     User submits identifier and 4-digit OTP. Backend validates existence and expiration.
+   - Step 3 (Reset Password): `POST /api/auth/forgot-password/reset`
+     User submits identifier, validated OTP, and `newPassword`. Backend hashes new password,
+     updates `users` collection, and invalidates the token.
+
+
+9.6 REPORTS & ANALYTICAL AUDIT WORKFLOW:
+----------------------------------------
+- Accessible via the "Reports & Analytics" tab.
+- Filters available: Department, Specific Employee ID, Date Range (From/To), Status.
+- Computes real-time dynamic KPIs: Total Records, Present Count, Late Count,
+  Absent Count, On Leave Count, and Average Attendance Percentage.
+- Provides table view of all matching records with export options (CSV / Excel).
+
+
+================================================================================
+10. API ROUTING & ENDPOINT DIRECTORY
+================================================================================
+
+System & Health:
+  - `GET  /health`                       : System health check & MongoDB ping
+  - `GET  /api`                          : API summary directory
+
+Authentication & Users (`/api/auth`):
+  - `POST /api/auth/login`               : User login (Admin, Manager, Employee)
+  - `POST /api/auth/register/admin`      : Register Admin (protected by passkey)
+  - `POST /api/auth/register/manager`    : Register Manager
+  - `POST /api/auth/register/employee`   : Register Employee with biometrics
+  - `POST /api/auth/forgot-password/request`: Generate OTP token
+  - `POST /api/auth/forgot-password/verify` : Validate OTP token
+  - `POST /api/auth/forgot-password/reset`  : Reset password with OTP
+  - `GET  /api/auth/users`               : List all users
+  - `GET  /api/auth/managers`            : List all managers
+  - `PUT  /api/auth/profile`             : Update user profile
+
+Admin Portal (`/api/admin`):
+  - `GET  /api/admin/dashboard/stats`    : Executive dashboard metrics
+  - `GET  /api/admin/employees`          : List all employees
+  - `POST /api/admin/employees`          : Add new employee
+  - `DELETE /api/admin/employees/{id}`   : Delete employee
+  - `GET  /api/admin/managers`           : List all managers
+  - `POST /api/admin/managers`           : Add new manager
+  - `GET  /api/admin/attendance`         : Get today / history attendance
+  - `POST /api/admin/attendance/override`: Attendance regularization override
+  - `GET  /api/admin/audits`             : List immutable audit trail logs
+  - `GET  /api/admin/settings`           : Get geofence & smart hours settings
+  - `PUT  /api/admin/settings/office`    : Update office location & geofence box
+
+Employee Portal (`/api/employee`):
+  - `POST /api/employee/attendance/mark` : Mark face + GPS check-in / check-out
+  - `GET  /api/employee/dashboard/{id}`  : Employee dashboard summary
+  - `GET  /api/employee/attendance/{id}` : Personal attendance history
+  - `GET  /api/employee/leave/{id}`      : Personal leave balances & requests
+  - `POST /api/employee/leave/apply`     : Submit leave application
+  - `GET  /api/employee/smart-hours/{id}`: Dynamic smart working hours simulation
+
+Manager Portal (`/api/manager`):
+  - `GET  /api/manager/dashboard/{id}`   : Manager team overview dashboard
+  - `GET  /api/manager/employees/{id}`   : List assigned direct reports
+  - `GET  /api/manager/leaves/{id}`      : List team leave applications
+  - `POST /api/manager/leave/review`     : Approve or reject leave request
+  - `GET  /api/manager/employee-history/{empId}`: Direct report attendance analysis
+
+Reports & Analytics (`/api/reports`):
+  - `GET  /api/reports/analytics`        : Aggregated attendance report metrics
+
+Biometrics & Computer Vision:
+  - `POST /employee/register`            : Multipart face image registration
+  - `POST /attendance/verify`            : Live webcam face verification
+
+
+================================================================================
+11. APPLICATION STARTUP & PROCESS LIFECYCLE
+================================================================================
+The project includes automated batch scripts for frictionless startup:
+
+1. Launcher Script: `run_app.bat`
+   - Verifies Python virtual environment at `.venv\Scripts\python.exe`.
+   - Verifies frontend dependencies in `frontend\node_modules` (runs `npm install` if absent).
+   - Frees occupied ports 8000 and 3000 using Windows `taskkill`.
+   - Launches FastAPI backend with Uvicorn on `http://127.0.0.1:8000`.
+   - Polls backend `/api` endpoint until MongoDB Atlas connection is healthy.
+   - Launches React Vite frontend on `http://localhost:3000`.
+   - Automatically opens default browser to `http://localhost:3000`.
+
+2. Shutdown Script: `stop_app.bat`
+   - Finds any listening processes on ports 8000 and 3000.
+   - Kills backend and frontend cleanly to release system memory.
+
+================================================================================
+                         END OF WORKFLOW SPECIFICATION
+================================================================================

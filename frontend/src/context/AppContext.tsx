@@ -520,7 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinDate: new Date().toISOString().split('T')[0],
       active: true,
       faceRegistered: adminData.faceRegistered ?? false,
-      avatarUrl: adminData.avatarUrl || '',
+      avatarUrl: adminData.avatarUrl?.trim() ? adminData.avatarUrl : undefined,
     };
     setUsers((prev) => [newAdmin, ...prev]);
 
@@ -579,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!livenessVerified) {
       return {
         success: false,
-        message: 'Liveness detection failed: Passive facial movement/blink could not be validated.',
+        message: 'Liveness verification failed: face presence could not be validated.',
       };
     }
 

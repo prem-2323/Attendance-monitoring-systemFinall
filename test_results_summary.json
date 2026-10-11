@@ -17,7 +17,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Rajesh Sharma"
+    "detail": "System Administrator"
   },
   {
     "category": "2. Authentication",
@@ -27,7 +27,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Kumar Verma"
+    "detail": "manager"
   },
   {
     "category": "2. Authentication",
@@ -48,7 +48,7 @@
       201,
       409
     ],
-    "actual_status": 409,
+    "actual_status": 201,
     "passed": true,
     "detail": "Passkey validated"
   },
@@ -71,7 +71,7 @@
       201,
       409
     ],
-    "actual_status": 409,
+    "actual_status": 201,
     "passed": true,
     "detail": "Department manager enrolled"
   },
@@ -84,7 +84,7 @@
       201,
       409
     ],
-    "actual_status": 409,
+    "actual_status": 201,
     "passed": true,
     "detail": "Face vector & credentials stored"
   },
@@ -96,7 +96,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Dispatched OTP: 7892"
+    "detail": "Dispatched OTP: 9950"
   },
   {
     "category": "4. Forgot Password",
@@ -126,7 +126,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Count: 9"
+    "detail": "Count: 8"
   },
   {
     "category": "5. Directory",
@@ -136,7 +136,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Count: 4"
+    "detail": "Count: 2"
   },
   {
     "category": "6. Admin Portal",
@@ -156,7 +156,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Total: 1"
+    "detail": "Total: 3"
   },
   {
     "category": "6. Admin Portal",
@@ -166,7 +166,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Total: 4"
+    "detail": "Total: 2"
   },
   {
     "category": "6. Admin Portal",
@@ -206,7 +206,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Audits count: 4"
+    "detail": "Audits count: 1"
   },
   {
     "category": "6. Admin Portal",
@@ -256,7 +256,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Attendance verified via Face + GPS at 06:25 PM! Status: Late."
+    "detail": "Attendance verified via Face + GPS at 07:44 PM! Status: Late."
   },
   {
     "category": "7. Employee Portal",
@@ -266,7 +266,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Check-out successfully recorded at 06:25 PM! Logged 0h 00m worked."
+    "detail": "Check-out successfully recorded at 07:44 PM! Logged 0h 00m worked."
   },
   {
     "category": "7. Employee Portal",
@@ -276,7 +276,7 @@
     "expected_status": 201,
     "actual_status": 201,
     "passed": true,
-    "detail": "Leave ID: leave-1791723317886"
+    "detail": "Leave ID: leave-1791728088598"
   },
   {
     "category": "7. Employee Portal",
@@ -296,7 +296,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Casual Left: 8"
+    "detail": "Casual Left: 10"
   },
   {
     "category": "7. Employee Portal",
@@ -326,7 +326,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Team count: 1"
+    "detail": "Team count: 3"
   },
   {
     "category": "8. Manager Portal",
@@ -336,7 +336,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Roster count: 1"
+    "detail": "Roster count: 3"
   },
   {
     "category": "8. Manager Portal",
@@ -346,7 +346,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Pending: 1"
+    "detail": "Pending: 0"
   },
   {
     "category": "8. Manager Portal",
@@ -386,7 +386,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Records: 3"
+    "detail": "Records: 2"
   },
   {
     "category": "9. Reports & Analytics",
@@ -406,7 +406,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Present count: 2"
+    "detail": "Present count: 1"
   },
   {
     "category": "9. Reports & Analytics",

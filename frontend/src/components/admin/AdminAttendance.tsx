@@ -625,7 +625,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                   <span className="font-bold">99.4% Cosine Match</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Liveness Blink Check:</span>
+                  <span>Liveness Check:</span>
                   <span className="font-bold">✓ Pass (Anti-Spoof Verified)</span>
                 </div>
                 <div className="flex justify-between">

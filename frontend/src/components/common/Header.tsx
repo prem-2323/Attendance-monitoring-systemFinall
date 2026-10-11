@@ -12,6 +12,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { SafeImage } from './SafeImage';
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void;
@@ -166,17 +167,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
             }}
             className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white py-1.5 pl-2 pr-3 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer"
           >
-            {currentUser?.avatarUrl ? (
-              <img
-                src={currentUser.avatarUrl}
-                alt={currentUser?.name}
-                className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <div className="h-7 w-7 rounded-lg bg-slate-900 text-white font-bold text-[11px] flex items-center justify-center">
-                {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'}
-              </div>
-            )}
+            <SafeImage
+              src={currentUser?.avatarUrl}
+              alt={currentUser?.name ?? 'User'}
+              className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200"
+              fallback={
+                <div className="h-7 w-7 rounded-lg bg-slate-900 text-white font-bold text-[11px] flex items-center justify-center">
+                  {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'}
+                </div>
+              }
+            />
             <div className="hidden sm:block text-left">
               <div className="text-xs font-semibold text-slate-900 leading-tight">
                 {currentUser?.name || 'Authorized User'}

@@ -1,0 +1,547 @@
+================================================================================
+          ATTENDANCE MONITORING SYSTEM - COMPLETE TESTFLOW GUIDE
+================================================================================
+Document: Step-by-Step Testing & Quality Assurance Manual
+File Name: testflow.txt
+Project: Attendance Monitoring System — Face Biometrics, GPS Geofencing & Smart Approval
+================================================================================
+
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+1. TESTING OBJECTIVES & QA STRATEGY
+2. PRE-TEST PREREQUISITES & ENVIRONMENT CHECKLIST
+3. SYSTEM EXECUTION (LAUNCHING BACKEND & FRONTEND)
+4. AUTOMATED TEST EXECUTION (3 BUILT-IN PYTHON TEST RUNNERS)
+   4.1 Full E2E Test Suite (`run_e2e_postman_suite.py`)
+   4.2 Postman Collection Test Runner (`run_postman_tests.py`)
+   4.3 Auth & MongoDB Persistence Runner (`test_auth_api.py`)
+   4.4 Postman Desktop App / Newman CLI Execution
+5. STEP-BY-STEP MANUAL END-TO-END FUNCTIONAL TESTFLOW (UI WALKTHROUGH)
+   5.1 Test Step 1: System Health & Connection Verification
+   5.2 Test Step 2: User Registration Flow (Admin, Manager, Employee)
+   5.3 Test Step 3: Login & Role-Based Access Control Verification
+   5.4 Test Step 4: Employee Biometric Face + GPS Check-In
+   5.5 Test Step 5: Flexible Smart Hours Calculation
+   5.6 Test Step 6: Employee Leave Application
+   5.7 Test Step 7: Manager Team Overview & Leave Approval / Rejection
+   5.8 Test Step 8: Employee Check-Out & Hours Calculation
+   5.9 Test Step 9: Admin Attendance Regularization Override & Audit Trail
+   5.10 Test Step 10: Reports & Analytics Filtering & Export
+6. SECURITY & NEGATIVE EDGE-CASE TEST SUITE
+   6.1 Test S1: Anti-Spoofing & Liveness Challenge Failure
+   6.2 Test S2: GPS Geofence Box Boundary Violation
+   6.3 Test S3: Rogue Admin Registration with Invalid Passkey
+   6.4 Test S4: Invalid Login Credentials & Error Handling
+   6.5 Test S5: Duplicate / Double Check-In Detection
+   6.6 Test S6: Forgot Password OTP Lifecycle
+7. MONGODB ATLAS DATABASE INTEGRITY VERIFICATION
+8. TROUBLESHOOTING & COMMON ISSUES RESOLUTION GUIDE
+
+
+================================================================================
+1. TESTING OBJECTIVES & QA STRATEGY
+================================================================================
+The objective of this testing flow is to validate that:
+  - All 3 system tiers (React Frontend, FastAPI Backend, MongoDB Atlas) communicate
+    flawlessly with zero unhandled exceptions.
+  - The Computer Vision pipeline (SSD MobileNet + 68 Landmarks + 128-d embeddings)
+    accurately recognizes enrolled faces and rejects low-confidence matches.
+  - Interactive liveness challenge blocks photo/screen replay spoofing attempts.
+  - Ray-casting GPS polygon geofencing allows check-in ONLY within the office box.
+  - Role-Based Access Control (RBAC) securely isolates Admin, Manager, and Employee
+    capabilities.
+  - All approvals and manual overrides write an immutable audit trail in MongoDB.
+
+
+================================================================================
+2. PRE-TEST PREREQUISITES & ENVIRONMENT CHECKLIST
+================================================================================
+Before running tests, verify the following prerequisites:
+
+1. Python Environment:
+   - Python 3.10 or 3.11 installed.
+   - Virtual environment exists at `.venv/`.
+   - Dependencies installed via: `pip install -r requirements.txt`
+   - Key packages: `fastapi`, `uvicorn`, `pymongo`, `opencv-python-headless`,
+     `dlib` (or `face_recognition`), `requests`, `python-dotenv`.
+
+2. Node.js & Frontend Environment:
+   - Node.js (v18 or higher) and npm installed.
+   - Frontend dependencies installed at `frontend/node_modules/`:
+     ```cmd
+     cd frontend
+     npm install
+     cd ..
+     ```
+
+3. MongoDB Atlas Connection:
+   - Check `backend/.env` file contains a valid `MONGODB_URI`:
+     `MONGODB_URI=mongodb+srv://...`
+   - Note: If MongoDB is offline, the backend gracefully falls back to `mongomock`,
+     allowing all logic tests to run without database interruption.
+
+4. Hardware & Permissions:
+   - Working webcam (or Virtual Camera mode enabled in UI).
+   - Browser location/GPS permission granted for `http://localhost:3000`.
+
+
+================================================================================
+3. SYSTEM EXECUTION (LAUNCHING BACKEND & FRONTEND)
+================================================================================
+
+METHOD A: ONE-CLICK LAUNCHER (RECOMMENDED)
+------------------------------------------
+Simply double-click or run from command prompt:
+```cmd
+run_app.bat
+```
+What `run_app.bat` does automatically:
+  1. Checks for `.venv\Scripts\python.exe`.
+  2. Ensures `frontend\node_modules` exists (runs `npm install` if missing).
+  3. Kills any conflicting processes listening on ports 8000 and 3000.
+  4. Starts FastAPI on `http://127.0.0.1:8000` with auto-reload.
+  5. Waits for MongoDB connection to initialize.
+  6. Starts Vite React dev server on `http://localhost:3000`.
+  7. Automatically opens your default web browser to `http://localhost:3000`.
+
+METHOD B: MANUAL COMMAND-LINE LAUNCH
+------------------------------------
+Terminal 1 (Backend):
+```cmd
+.venv\Scripts\activate
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+Terminal 2 (Frontend):
+```cmd
+cd frontend
+npm run dev
+```
+
+TO STOP THE APPLICATION:
+------------------------
+Run:
+```cmd
+stop_app.bat
+```
+This cleanly terminates both processes on ports 8000 and 3000.
+
+
+================================================================================
+4. AUTOMATED TEST EXECUTION (3 BUILT-IN PYTHON TEST RUNNERS)
+================================================================================
+
+The repository includes three automated test runners that test backend routes,
+biometric checks, database persistence, and API schemas without requiring a browser.
+
+--------------------------------------------------------------------------------
+4.1 FULL E2E TEST SUITE: `run_e2e_postman_suite.py`
+--------------------------------------------------------------------------------
+This is the most comprehensive test suite. It executes 28+ test scenarios in strict
+chronological dependency order across 10 functional categories.
+
+How to Run:
+```cmd
+.venv\Scripts\python run_e2e_postman_suite.py
+```
+
+Scenarios Tested:
+  [Category 1: System Health]
+    - GET /health -> Status 200, checks MongoDB ping.
+  [Category 2: Authentication]
+    - POST /api/auth/login (Admin credentials) -> Status 200.
+    - POST /api/auth/login (Manager ID) -> Status 200.
+    - POST /api/auth/login (Invalid credentials) -> Status 401 (Error test).
+  [Category 3: User Registration]
+    - POST /api/auth/register/admin (with valid passkey AMS-ROOT-2026) -> Status 201/409.
+    - POST /api/auth/register/admin (with wrong passkey) -> Status 403 (Security test).
+    - POST /api/auth/register/manager -> Status 201/409.
+    - POST /api/auth/register/employee (with biometric vector) -> Status 201/409.
+  [Category 4: Forgot Password Flow]
+    - POST /api/auth/forgot-password/request -> Generates 4-digit OTP.
+    - POST /api/auth/forgot-password/verify -> Validates OTP.
+    - POST /api/auth/forgot-password/reset -> Resets password hash in Atlas.
+  [Category 5: Corporate Directory]
+    - GET /api/auth/users -> Returns active users.
+    - GET /api/auth/managers -> Returns department managers.
+  [Category 6: Admin Portal]
+    - GET /api/admin/dashboard/stats -> Live KPI counts.
+    - GET /api/admin/employees -> Employee list.
+    - GET /api/admin/managers -> Manager list.
+    - GET /api/admin/attendance?mode=today -> Today's roster.
+    - GET /api/admin/attendance?mode=history -> Historical records.
+    - POST /api/admin/attendance/override -> Regularization & audit creation.
+    - GET /api/admin/audits -> Audit trail inspection.
+    - GET /api/admin/settings -> Office geofence coordinates.
+    - PUT /api/admin/settings/office -> Geofence update.
+  [Category 7: Employee Portal]
+    - POST /api/employee/attendance/mark (Liveness=False) -> Status 400 (Anti-spoof test).
+    - POST /api/employee/attendance/mark (Outside geofence) -> Status 400 (GPS test).
+    - POST /api/employee/attendance/mark (Valid Check-in) -> Status 200.
+    - POST /api/employee/attendance/mark (Valid Check-out) -> Status 200.
+    - POST /api/employee/leave/apply -> Status 201 (Leaves logged).
+    - GET /api/employee/attendance/EMP005 -> History retrieved.
+    - GET /api/employee/leave/EMP005 -> Quotas retrieved.
+    - GET /api/employee/dashboard/EMP005 -> Personal metrics.
+    - GET /api/employee/smart-hours/EMP005 -> Flexible shift calculation.
+  [Category 8: Manager Portal]
+    - GET /api/manager/dashboard/user-mgr-1 -> Manager metrics.
+    - GET /api/manager/employees/user-mgr-1 -> Direct reports roster.
+    - GET /api/manager/leaves/user-mgr-1 -> Team leave applications.
+    - POST /api/manager/leave/review -> Approve/reject with audit log.
+    - GET /api/manager/employee-history/EMP005 -> Track record review.
+  [Category 9: Reports & Analytics]
+    - GET /api/reports/analytics (All departments) -> Status 200.
+    - GET /api/reports/analytics?department=Engineering -> Filter test.
+    - GET /api/reports/analytics?fromDate=...&toDate=... -> Date range test.
+    - GET /api/reports/analytics?status=Present -> Status filter.
+    - GET /api/reports/analytics?employeeId=EMP005 -> Individual filter.
+  [Category 10: User Profile]
+    - PUT /api/auth/profile -> Phone & avatar update in MongoDB.
+
+Expected Output:
+  At completion, you should see:
+  `TEST SUITE COMPLETE: 28 TOTAL | 28 PASSED | 0 FAILED`
+  and the results are saved to `test_results_summary.json`.
+
+--------------------------------------------------------------------------------
+4.2 POSTMAN COLLECTION RUNNER: `run_postman_tests.py`
+--------------------------------------------------------------------------------
+Runs the full `Attendance_System_Postman_Collection.json` directly through the
+FastAPI test client.
+How to Run:
+```cmd
+.venv\Scripts\python run_postman_tests.py
+```
+Expected Output:
+  `TOTAL: 20+ | PASSED: 20+ | FAILED: 0`
+
+--------------------------------------------------------------------------------
+4.3 AUTH & MONGODB ATLAS RUNNER: `test_auth_api.py`
+--------------------------------------------------------------------------------
+Validates authentication, salted password hashing, OTP creation, OTP verification,
+and password reset directly against MongoDB Atlas.
+How to Run:
+```cmd
+.venv\Scripts\python test_auth_api.py
+```
+Expected Output:
+  `ALL BACKEND & MONGODB ATLAS TESTS PASSED!!`
+
+--------------------------------------------------------------------------------
+4.4 POSTMAN DESKTOP APP / NEWMAN CLI EXECUTION
+--------------------------------------------------------------------------------
+If you prefer running via the official Postman GUI:
+  1. Open Postman Desktop App.
+  2. Click "Import" -> Select `Attendance_System_Postman_Collection.json`.
+  3. Ensure Collection Variable `baseUrl` is set to `http://127.0.0.1:8000`.
+  4. Make sure backend is running (`run_app.bat`).
+  5. Click on the collection name -> Click "Run Collection".
+  6. All tests will run and display green checkmarks.
+
+
+================================================================================
+5. STEP-BY-STEP MANUAL END-TO-END FUNCTIONAL TESTFLOW (UI WALKTHROUGH)
+================================================================================
+Follow this comprehensive manual test plan in your web browser (`http://localhost:3000`).
+
+--------------------------------------------------------------------------------
+5.1 TEST STEP 1: SYSTEM HEALTH & CONNECTION VERIFICATION
+--------------------------------------------------------------------------------
+Action:
+  1. Open browser to `http://127.0.0.1:8000/health`.
+  2. Open browser to `http://127.0.0.1:8000/docs` (Swagger UI).
+Expected Result:
+  - `/health` returns `{"status":"running","api":"Attendance Monitoring System","database_connected":true}`.
+  - Swagger UI renders all documentation for Auth, Admin, Manager, Employee, and Reports.
+
+--------------------------------------------------------------------------------
+5.2 TEST STEP 2: USER REGISTRATION FLOW
+--------------------------------------------------------------------------------
+Action:
+  1. Navigate to `http://localhost:3000`.
+  2. If currently logged in, click "Logout" in header.
+  3. On Login page, click "Register New Account".
+  4. Test Register Admin:
+     - Select Role: "Admin".
+     - Enter Name: "Security Lead", Employee ID: "ADM777", Email: "lead@company.com", Password: "password123".
+     - Enter Passkey: `AMS-ROOT-2026`.
+     - Click "Register".
+     - Expected: Modal confirms "Administrator registered successfully".
+  5. Test Register Manager:
+     - Select Role: "Manager".
+     - Enter Name: "Priya Sharma", Employee ID: "MGR777", Email: "priya@company.com", Department: "Engineering".
+     - Enter Password: "password123".
+     - Click "Register".
+     - Expected: "Manager registered successfully".
+  6. Test Register Employee:
+     - Select Role: "Employee".
+     - Enter Name: "Karthik Raja", Employee ID: "EMP777", Email: "karthik@company.com", Department: "Engineering".
+     - Assign Manager: "Priya Sharma".
+     - Check "Biometric Face Registration".
+     - Click "Register".
+     - Expected: Account created and synced to MongoDB.
+
+--------------------------------------------------------------------------------
+5.3 TEST STEP 3: LOGIN & ROLE-BASED ACCESS CONTROL VERIFICATION
+--------------------------------------------------------------------------------
+Action:
+  1. In Login screen, enter `admin@company.com` and password `password123`.
+     - Expected: Authenticated as Admin; sidebar displays Admin navigation:
+       "Dashboard", "Employees", "Managers", "Attendance", "Approval Audit", "Reports", "Settings".
+  2. Click "Logout". Enter `manager@company.com` and `password123`.
+     - Expected: Authenticated as Manager; sidebar displays Manager navigation:
+       "Team Overview", "My Employees", "Leave Approval", "Reports", "Profile".
+  3. Click "Logout". Enter `employee@company.com` and `password123`.
+     - Expected: Authenticated as Employee; sidebar displays Employee navigation:
+       "My Dashboard", "Mark Attendance", "History", "Smart Hours", "Apply Leave", "Leave Status".
+
+--------------------------------------------------------------------------------
+5.4 TEST STEP 4: EMPLOYEE BIOMETRIC FACE + GPS CHECK-IN
+--------------------------------------------------------------------------------
+Action:
+  1. Logged in as Employee (`employee@company.com` or `EMP001`).
+  2. Click "Mark Attendance" in the sidebar.
+  3. Observe GPS Geofence Check:
+     - The GPS Radar component reads browser geolocation.
+     - Within office box: Status indicator shows "Within Office Perimeter (Green)".
+     - Note: If testing from outside the actual office, click "Use Demo Campus Location"
+       or toggle "Simulation Mode" so GPS matches the configured office box.
+  4. Observe Camera Stream:
+     - Webcam activates and live preview renders in video frame.
+     - If webcam is unavailable, toggle "Virtual Camera Simulation".
+  5. Complete Liveness Challenge:
+     - UI guides through 3 stages:
+       * Stage 1: "Stand directly in front of the camera" -> Face detected.
+       * Stage 2: "Blink your eyes" -> Blink verified.
+       * Stage 3: "Turn head slightly" -> Head motion verified.
+  6. Submit Check-In:
+     - Click "Confirm & Mark Attendance".
+     - System extracts face embeddings, performs match, and checks arrival time.
+  7. Verification:
+     - Green success banner appears: "Check-in Marked Successfully at [HH:MM AM]".
+     - Status shows "Present" (or "Late" if checked in after 9:15 AM).
+
+--------------------------------------------------------------------------------
+5.5 TEST STEP 5: FLEXIBLE SMART HOURS CALCULATION
+--------------------------------------------------------------------------------
+Action:
+  1. In Employee Portal, click "Smart Working Hours".
+  2. Observe Current Shift Metrics:
+     - Displays Actual Check-In Time (e.g., 09:15 AM).
+     - Displays Dynamic Expected Check-Out Time (e.g., 05:15 PM = Check-in + 8h).
+     - Live radial progress ring showing hours completed vs hours remaining.
+  3. Interactive Shift Simulator:
+     - Select a hypothetical check-in time (e.g., "11:00 AM").
+     - Verify simulator immediately updates expected checkout to "07:00 PM".
+
+--------------------------------------------------------------------------------
+5.6 TEST STEP 6: EMPLOYEE LEAVE APPLICATION
+--------------------------------------------------------------------------------
+Action:
+  1. Click "Apply Leave" in sidebar.
+  2. Inspect Leave Quota balances:
+     - Casual Leave: e.g., 12 remaining.
+     - Sick Leave: e.g., 8 remaining.
+  3. Fill Leave Application:
+     - Select Leave Type: "Casual Leave".
+     - Select From Date: Tomorrow's date.
+     - Select To Date: Day after tomorrow.
+     - Enter Reason: "Family function travel".
+  4. Click "Submit Leave Application".
+  5. Verification:
+     - Success alert: "Leave application submitted to your manager."
+     - Automatically routes to "Leave Status" tab.
+     - Application appears in the list with yellow badge: "Pending Approval".
+
+--------------------------------------------------------------------------------
+5.7 TEST STEP 7: MANAGER TEAM OVERVIEW & LEAVE APPROVAL / REJECTION
+--------------------------------------------------------------------------------
+Action:
+  1. Logout and log in as Manager (`manager@company.com` or `MGR001`).
+  2. Inspect Manager Dashboard:
+     - "Pending Leave Requests" KPI shows at least 1 pending item.
+  3. Navigate to "Leave Approval":
+     - Locate the leave application submitted by the employee in Step 5.6.
+     - Verify employee name, dates, leave type, and reason match.
+  4. Test Approval Flow:
+     - Click "Review / Approve".
+     - Modal opens prompting for Manager Remarks.
+     - Enter: "Approved, team coverage confirmed."
+     - Click "Confirm Approval".
+  5. Verification:
+     - Status updates instantly to green: "Approved".
+     - Reviewer name and timestamp are populated.
+     - An immutable audit log entry is generated in MongoDB Atlas.
+
+--------------------------------------------------------------------------------
+5.8 TEST STEP 8: EMPLOYEE CHECK-OUT & HOURS CALCULATION
+--------------------------------------------------------------------------------
+Action:
+  1. Log back in as Employee (`employee@company.com`).
+  2. Click "Mark Attendance".
+  3. Notice Mode Toggle:
+     - Mode automatically toggles to "Check-Out" because check-in was recorded today.
+  4. Align face in camera and verify GPS.
+  5. Click "Submit Check-Out".
+  6. Verification:
+     - Success banner: "Check-out Recorded Successfully".
+     - Total `hoursWorked` calculated and displayed (e.g., "8h 05m").
+
+--------------------------------------------------------------------------------
+5.9 TEST STEP 9: ADMIN ATTENDANCE REGULARIZATION OVERRIDE & AUDIT TRAIL
+--------------------------------------------------------------------------------
+Action:
+  1. Log in as Administrator (`admin@company.com`).
+  2. Click "Attendance" -> "Today".
+  3. Locate an employee record (e.g., marked "Late" or "Absent").
+  4. Click "Edit / Regularize".
+  5. In the override modal:
+     - Change status to "Present".
+     - Enter mandatory Reason: "Administrative adjustment due to site biometric maintenance".
+     - Click "Save Override".
+  6. Navigate to "Approval Audit" tab in sidebar:
+     - Verify that a new row has appeared at the top of the table.
+     - Check columns: Actor ("System Administrator"), Target Employee, Action ("Attendance Override"),
+       Previous Status, New Status ("Present"), Reason, Timestamp.
+     - Verify the record cannot be deleted or edited (immutable audit).
+
+--------------------------------------------------------------------------------
+5.10 TEST STEP 10: REPORTS & ANALYTICS FILTERING & EXPORT
+--------------------------------------------------------------------------------
+Action:
+  1. In Admin or Manager view, click "Reports".
+  2. Test Department Filter:
+     - Change Department dropdown from "All" to "Engineering".
+     - Verify list filters to Engineering employees only.
+  3. Test Status Filter:
+     - Change Status dropdown to "Present".
+     - Verify table displays only Present records.
+  4. Test Export:
+     - Click "Export CSV".
+     - Browser downloads `attendance_report.csv`.
+     - Open file and verify columns: Employee ID, Name, Department, Date, Check In,
+       Check Out, Status, Hours Worked.
+
+
+================================================================================
+6. SECURITY & NEGATIVE EDGE-CASE TEST SUITE
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 TEST S1: ANTI-SPOOFING & LIVENESS CHALLENGE FAILURE
+--------------------------------------------------------------------------------
+Objective: Ensure static photos or spoofing attempts are blocked.
+Action (API Level):
+  Send POST request to `/api/employee/attendance/mark` with:
+  `{"employeeId":"EMP001", "isCheckOut":false, "livenessVerified":false, "withinRadius":true}`
+Expected Response:
+  - HTTP Status: `400 Bad Request`
+  - Detail: "Liveness verification failed. Potential spoofing or replay attempt detected."
+  - Database: No attendance document created.
+
+--------------------------------------------------------------------------------
+6.2 TEST S2: GPS GEOFENCE BOX BOUNDARY VIOLATION
+--------------------------------------------------------------------------------
+Objective: Ensure check-in from outside office polygon is strictly blocked.
+Action (API Level):
+  Send POST request to `/api/employee/attendance/mark` with coordinates outside office:
+  `{"employeeId":"EMP001", "latitude": 13.0827, "longitude": 80.2707}` (Coordinates in another city)
+Expected Response:
+  - HTTP Status: `400 Bad Request`
+  - Detail: Contains "Outside office geofence box: your GPS position ... is not inside the premises."
+  - Result: Check-in rejected.
+
+--------------------------------------------------------------------------------
+6.3 TEST S3: ROGUE ADMIN REGISTRATION WITH INVALID PASSKEY
+--------------------------------------------------------------------------------
+Objective: Prevent unauthorized users from creating Admin accounts.
+Action:
+  Attempt POST `/api/auth/register/admin` with `securityPasskey: "WRONG_SECRET"`.
+Expected Response:
+  - HTTP Status: `403 Forbidden`
+  - Detail: "Invalid Administrator Passkey. Contact Security or use default AMS-ROOT-2026."
+
+--------------------------------------------------------------------------------
+6.4 TEST S4: INVALID LOGIN CREDENTIALS & ERROR HANDLING
+--------------------------------------------------------------------------------
+Objective: Verify invalid emails/passwords do not leak sensitive information.
+Action:
+  Attempt POST `/api/auth/login` with `identifier: "fake@company.com"`, `password: "wrong"`.
+Expected Response:
+  - HTTP Status: `401 Unauthorized`
+  - UI shows clear error alert: "Account not found. Please verify your Email or Employee ID."
+
+--------------------------------------------------------------------------------
+6.5 TEST S5: DUPLICATE / DOUBLE CHECK-IN DETECTION
+--------------------------------------------------------------------------------
+Objective: Prevent an employee from submitting multiple check-ins on the same day.
+Action:
+  Submit a second check-in request (`isCheckOut: false`) on the same calendar date.
+Expected Response:
+  - System detects existing check-in timestamp.
+  - Automatically preserves original check-in and prompts employee to Check-Out instead.
+
+--------------------------------------------------------------------------------
+6.6 TEST S6: FORGOT PASSWORD OTP LIFECYCLE
+--------------------------------------------------------------------------------
+Objective: Test password recovery security.
+Action:
+  1. POST `/api/auth/forgot-password/request` with `identifier: "admin@company.com"`.
+     - Returns 4-digit code (e.g., `8421`).
+  2. POST `/api/auth/forgot-password/verify` with incorrect code `0000`.
+     - Expected: `400 Bad Request` ("Invalid or expired OTP verification code").
+  3. POST `/api/auth/forgot-password/verify` with correct code.
+     - Expected: `200 OK`.
+  4. POST `/api/auth/forgot-password/reset` with new password.
+     - Expected: `200 OK`. Password updated in Atlas.
+
+
+================================================================================
+7. MONGODB ATLAS DATABASE INTEGRITY VERIFICATION
+================================================================================
+If you have access to MongoDB Compass or MongoDB Atlas web console:
+
+1. Open database: `attendance-monitoring-system`.
+2. Inspect `users` collection:
+   - Verify documents have `password_hash` populated (never plain text password).
+   - Verify unique indexes exist on `email` and `employeeId`.
+3. Inspect `attendance` collection:
+   - Check that documents have `confidence`, `withinRadius: true`, and `livenessVerified: true`.
+4. Inspect `leave_requests` collection:
+   - Verify that approved leaves have `reviewedBy`, `reviewedByName`, and `remarks`.
+5. Inspect `approval_audits` collection:
+   - Verify audit trail documents contain `actorName`, `targetEmployeeId`, and `reason`.
+6. Inspect `settings` collection:
+   - Check `global_settings` document contains `geofencePolygon` array with 4 vertex points.
+
+
+================================================================================
+8. TROUBLESHOOTING & COMMON ISSUES RESOLUTION GUIDE
+================================================================================
+
+Issue 1: "Ports 8000 or 3000 Already in Use"
+  Solution: Run `stop_app.bat` to terminate lingering node or python tasks, or run
+  `run_app.bat` which automatically terminates conflicting port processes.
+
+Issue 2: "Webcam Access Denied / Black Camera Box"
+  Solution:
+  - Check browser camera permission (click the padlock icon in URL bar -> Allow Camera).
+  - If using a laptop without an active webcam, toggle "Use Virtual Camera Simulation"
+    in the UI to test biometric flows without hardware camera.
+
+Issue 3: "Outside Office Geofence Box Error"
+  Solution:
+  - The system validates that your GPS is inside the campus polygon.
+  - When testing remotely, toggle "Simulation Mode" or click "Use Demo Office Location"
+    in the UI radar component. This mocks the office centroid coordinates.
+
+Issue 4: "MongoDB Connection Timeout"
+  Solution:
+  - Check your internet connection (MongoDB Atlas requires internet).
+  - Ensure your IP address is whitelisted in MongoDB Atlas Network Access.
+  - The application automatically falls back to in-memory `mongomock` if Atlas is
+    unreachable, allowing tests to run offline.
+
+================================================================================
+                         END OF TESTFLOW SPECIFICATION
+================================================================================

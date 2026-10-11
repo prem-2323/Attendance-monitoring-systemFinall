@@ -209,8 +209,8 @@ export const AdminSettings: React.FC = () => {
 
             <div className="space-y-1">
               <span className="font-semibold text-slate-800">Liveness Detection Mode</span>
-              <p className="text-slate-500 text-[11px]">Passive blink verification + head movement</p>
-              <div className="font-bold text-emerald-600 text-sm">Active (3 Challenges)</div>
+              <p className="text-slate-500 text-[11px]">Automatic face-presence verification</p>
+              <div className="font-bold text-emerald-600 text-sm">Automatic</div>
             </div>
           </div>
         </div>

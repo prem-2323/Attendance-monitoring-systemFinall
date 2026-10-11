@@ -339,7 +339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <div className="rounded-xl bg-blue-50/70 p-3.5 border border-blue-100">
               <div className="font-bold text-blue-950">Liveness Verification</div>
               <div className="text-[11px] text-blue-700 mt-1 leading-relaxed">
-                Passive eye-blink challenge + head movement anti-spoof detection.
+                Automatic face-presence verification with enrolled 128-D embedding.
               </div>
             </div>
 

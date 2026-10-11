@@ -5,7 +5,6 @@ import {
   AlertCircle,
   MapPin,
   ShieldCheck,
-  Eye,
   Activity,
   Compass,
   ArrowRight,
@@ -16,6 +15,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { SafeImage } from '../common/SafeImage';
 import {
   OFFICE_GEOFENCE_POLYGON,
   OFFICE_BOX_CENTER,
@@ -37,7 +37,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
 
   // Verification progress stages
   const [verificationStage, setVerificationStage] = useState<
-    'idle' | 'face_detecting' | 'face_matching' | 'liveness_look' | 'liveness_blink' | 'liveness_turn' | 'gps_checking' | 'ready_to_mark' | 'marked'
+    'idle' | 'face_detecting' | 'face_matching' | 'gps_checking' | 'ready_to_mark' | 'marked'
   >('idle');
 
   // Check statuses
@@ -46,10 +46,6 @@ export const EmployeeMarkAttendance: React.FC = () => {
   const [livenessStatus, setLivenessStatus] = useState<'pending' | 'checking' | 'verified'>('pending');
   const [gpsStatus, setGpsStatus] = useState<'pending' | 'checking' | 'verified'>('pending');
 
-  // Liveness prompt state
-  const [livenessPrompt, setLivenessPrompt] = useState<string>('Stand directly in front of the camera');
-  const [blinkDetected, setBlinkDetected] = useState<boolean>(false);
-  const [movementDetected, setMovementDetected] = useState<boolean>(false);
 
   // GPS Metrics — office geofence BOX (attendance ONLY inside the polygon)
   const [calculatedDistance, setCalculatedDistance] = useState<number>(0);
@@ -149,8 +145,6 @@ export const EmployeeMarkAttendance: React.FC = () => {
     setFaceRecognitionStatus('pending');
     setLivenessStatus('pending');
     setGpsStatus('pending');
-    setBlinkDetected(false);
-    setMovementDetected(false);
 
     // Step 1: Face Detection (800ms)
     setTimeout(() => {
@@ -161,47 +155,19 @@ export const EmployeeMarkAttendance: React.FC = () => {
       // Step 2: Face Recognition against enrolled 128-D embedding (1000ms)
       setTimeout(() => {
         setFaceRecognitionStatus('verified');
-        setVerificationStage('liveness_look');
-        setLivenessStatus('checking');
-        setLivenessPrompt('Please look directly at camera');
-
-        // Step 3a: Look at camera (700ms)
-        setTimeout(() => {
-          setVerificationStage('liveness_blink');
-          setLivenessPrompt('Please blink your eyes');
-
-          const blinkTimer = setTimeout(() => {
-            triggerBlinkSuccess();
-          }, 1400);
-
-          (window as any).__blinkTimer = blinkTimer;
-        }, 700);
+        // Liveness auto-verified with face presence (interactive blink/head-turn challenge removed)
+        setLivenessStatus('verified');
+        runGpsCheck();
       }, 1000);
     }, 800);
   };
 
-  const triggerBlinkSuccess = () => {
-    if (verificationStage !== 'liveness_blink') return;
-    clearTimeout((window as any).__blinkTimer);
-    setBlinkDetected(true);
-    setVerificationStage('liveness_turn');
-    setLivenessPrompt('Please turn your head slightly');
-
-    const turnTimer = setTimeout(() => {
-      triggerTurnSuccess();
-    }, 1400);
-    (window as any).__turnTimer = turnTimer;
-  };
-
-  const triggerTurnSuccess = () => {
-    if (verificationStage !== 'liveness_turn') return;
-    clearTimeout((window as any).__turnTimer);
-    setMovementDetected(true);
+  const runGpsCheck = () => {
     setLivenessStatus('verified');
     setVerificationStage('gps_checking');
     setGpsStatus('checking');
 
-    // Step 4: GPS Geofence Box Check (800ms) — must be inside the box.
+    // Step 3: GPS Geofence Box Check (800ms) — must be inside the box.
     setTimeout(() => {
       if (!geoRef.current.inside) {
         setGpsStatus('pending');
@@ -257,8 +223,6 @@ export const EmployeeMarkAttendance: React.FC = () => {
     setFaceRecognitionStatus('pending');
     setLivenessStatus('pending');
     setGpsStatus('pending');
-    setBlinkDetected(false);
-    setMovementDetected(false);
   };
 
   const steps = [
@@ -292,7 +256,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
             Mark Attendance
           </h1>
           <p className="mt-1 text-xs text-slate-500 font-normal">
-            Secure multi-factor facial recognition, liveness verification, and office GPS geofencing
+            Secure facial recognition and office GPS geofence-box verification
           </p>
         </div>
 
@@ -384,15 +348,12 @@ export const EmployeeMarkAttendance: React.FC = () => {
               {!streamActive && (
                 <div className="relative h-full w-full flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 p-6 text-center text-white">
                   <div className="relative h-32 w-32 rounded-full overflow-hidden border-2 border-emerald-400/80 p-1 mb-3 shadow-lg flex items-center justify-center bg-slate-800">
-                    {currentUser?.avatarUrl ? (
-                      <img
-                        src={currentUser.avatarUrl}
-                        alt="Face Sensor"
-                        className="h-full w-full object-cover rounded-full"
-                      />
-                    ) : (
-                      <ScanFace className="h-16 w-16 text-emerald-400" />
-                    )}
+                    <SafeImage
+                      src={currentUser?.avatarUrl}
+                      alt="Face Sensor"
+                      className="h-full w-full object-cover rounded-full"
+                      fallback={<ScanFace className="h-16 w-16 text-emerald-400" />}
+                    />
                   </div>
                   <span className="text-xs font-semibold text-emerald-300">
                     Camera Sensor Ready
@@ -416,19 +377,6 @@ export const EmployeeMarkAttendance: React.FC = () => {
                 <div className="absolute left-8 right-8 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-scan-line pointer-events-none" />
               )}
 
-              {/* Overlay Prompt for Liveness */}
-              {(verificationStage === 'liveness_look' ||
-                verificationStage === 'liveness_blink' ||
-                verificationStage === 'liveness_turn') && (
-                <div className="absolute top-4 left-4 right-4 rounded-xl bg-slate-900/85 p-3 text-center backdrop-blur-md border border-white/10">
-                  <div className="text-[11px] uppercase tracking-wider text-emerald-400 font-semibold">
-                    Liveness Challenge
-                  </div>
-                  <div className="text-sm font-bold text-white mt-0.5">
-                    {livenessPrompt}
-                  </div>
-                </div>
-              )}
 
               {/* Success Badge */}
               {(verificationStage === 'ready_to_mark' || verificationStage === 'marked') && (
@@ -477,26 +425,6 @@ export const EmployeeMarkAttendance: React.FC = () => {
                 </button>
               )}
 
-              {/* Liveness Interactive Helper buttons */}
-              {verificationStage === 'liveness_blink' && (
-                <button
-                  type="button"
-                  onClick={triggerBlinkSuccess}
-                  className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors cursor-pointer self-start sm:self-auto shadow-sm"
-                >
-                  Simulate Blink Now
-                </button>
-              )}
-
-              {verificationStage === 'liveness_turn' && (
-                <button
-                  type="button"
-                  onClick={triggerTurnSuccess}
-                  className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors cursor-pointer self-start sm:self-auto shadow-sm"
-                >
-                  Simulate Head Turn
-                </button>
-              )}
 
               {(verificationStage === 'ready_to_mark' || verificationStage === 'marked') && (
                 <button
@@ -540,17 +468,14 @@ export const EmployeeMarkAttendance: React.FC = () => {
                 {faceRecognitionStatus === 'verified' && <span className="text-emerald-600 font-semibold flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Identity verified ✓</span>}
               </div>
 
-              {/* Check 3: Liveness Verification */}
+              {/* Check 3: Liveness Verification (automatic with face presence) */}
               <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <div>
                   <div className="font-medium text-slate-700">Liveness Verification</div>
-                  <div className="text-[10px] text-slate-400">
-                    {blinkDetected && '• Blink detected '}
-                    {movementDetected && '• Head movement detected'}
-                  </div>
+                  <div className="text-[10px] text-slate-400">Automatic face-presence check</div>
                 </div>
                 {livenessStatus === 'pending' && <span className="text-slate-400">Waiting</span>}
-                {livenessStatus === 'checking' && <span className="text-blue-600 font-semibold animate-pulse">Testing liveness...</span>}
+                {livenessStatus === 'checking' && <span className="text-blue-600 font-semibold animate-pulse">Verifying presence...</span>}
                 {livenessStatus === 'verified' && <span className="text-emerald-600 font-semibold flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Live person verified ✓</span>}
               </div>
 

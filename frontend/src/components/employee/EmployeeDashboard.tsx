@@ -317,7 +317,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                   Mark Attendance
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed font-normal">
-                  Verify identity through face scan, eye-blink liveness detection, and GPS office boundary check.
+                  Verify identity through face scan and GPS office box check.
                 </p>
                 <div className="mt-4 flex items-center text-xs font-semibold text-emerald-600 group-hover:text-emerald-700">
                   <span>Start verification</span>

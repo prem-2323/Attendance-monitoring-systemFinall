@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserCheck, UserPlus, Mail, Phone, Building, Users, X, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { SafeImage } from '../common/SafeImage';
 import { SkeletonRosterGrid } from '../common/Skeleton';
 
 interface AdminManagersProps {
@@ -110,17 +111,16 @@ export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManag
               <div>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    {mgr.avatarUrl ? (
-                      <img
-                        src={mgr.avatarUrl}
-                        alt={mgr.name}
-                        className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm ring-2 ring-slate-100">
-                        {mgr.name.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
+                    <SafeImage
+                      src={mgr.avatarUrl}
+                      alt={mgr.name}
+                      className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                      fallback={
+                        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm ring-2 ring-slate-100">
+                          {mgr.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      }
+                    />
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm">{mgr.name}</h3>
                       <div className="text-[11px] font-medium text-slate-500">{mgr.employeeId}</div>

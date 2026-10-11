@@ -140,7 +140,7 @@ export const LoginView: React.FC = () => {
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed font-normal">
-            Automate daily check-ins with multi-factor facial biometrics, passive anti-spoof liveness detection, and GPS office geofencing — backed by fair flexible-hours shift logic.
+            Automate daily check-ins with multi-factor facial biometrics, automatic face-presence verification, and GPS office geofencing — backed by fair flexible-hours shift logic.
           </p>
 
           {/* Feature Highlights Grid */}
@@ -151,7 +151,7 @@ export const LoginView: React.FC = () => {
                 <span>Facial AI Biometrics</span>
               </div>
               <p className="mt-1 text-[11px] text-slate-400 leading-normal">
-                128-D vector representation with passive eye-blink detection.
+                128-D vector representation with automatic face-presence check.
               </p>
             </div>
 

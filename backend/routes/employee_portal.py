@@ -126,7 +126,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         if not payload.livenessVerified:
             raise HTTPException(
                 status_code=400,
-                detail="Liveness verification failed: Blink and head movement anti-spoof check could not be validated.",
+                detail="Liveness verification failed: face-presence check could not be validated.",
             )
 
         # 3. Format current time
