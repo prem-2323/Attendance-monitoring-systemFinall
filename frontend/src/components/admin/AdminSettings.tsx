@@ -138,6 +138,31 @@ export const AdminSettings: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Office geofence box corners (from OFFICE_GEOFENCE_POLYGON env) */}
+          <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 p-3.5">
+            <div className="text-xs font-bold text-emerald-900">
+              Office Geofence Box — attendance allowed ONLY inside
+            </div>
+            <p className="mt-0.5 text-[11px] text-emerald-800">
+              Corners are configured in the env file (OFFICE_GEOFENCE_POLYGON). The server re-checks every check-in against this box.
+            </p>
+            <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {(officeLocation.geofencePolygon ?? []).map((c, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 font-mono text-[11px] text-slate-700"
+                >
+                  Corner {i + 1}: {c.lat.toFixed(6)}, {c.lng.toFixed(6)}
+                </div>
+              ))}
+              {(!officeLocation.geofencePolygon || officeLocation.geofencePolygon.length === 0) && (
+                <div className="text-[11px] text-slate-500">
+                  Box corners load from the server on next refresh.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Working Hours & Shift Rules */}

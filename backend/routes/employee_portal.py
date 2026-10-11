@@ -74,15 +74,50 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         if not emp:
             raise HTTPException(status_code=404, detail=f"Employee '{payload.employeeId}' not found.")
 
-        # 2. Check office geofencing radius
+        # 2. Office geofence BOX check — attendance ONLY inside the polygon.
+        # The client sends its live GPS fix (latitude/longitude); the server
+        # re-verifies with a point-in-polygon test so spoofed flags can't pass.
         settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
         allowed_radius = 150
-        office_name = "Chennai Tech Park (HQ)"
+        office_name = "Head Office Block"
+        polygon = None
         if settings_doc and "officeLocation" in settings_doc:
             allowed_radius = settings_doc["officeLocation"].get("allowedRadiusMeters", 150)
             office_name = settings_doc["officeLocation"].get("name", office_name)
+        if settings_doc and settings_doc.get("geofencePolygon"):
+            try:
+                polygon = [
+                    (float(p["lat"]), float(p["lng"]))
+                    for p in settings_doc["geofencePolygon"]
+                    if "lat" in p and "lng" in p
+                ] or None
+            except (TypeError, ValueError, KeyError):
+                polygon = None
 
-        if not payload.withinRadius and payload.distanceMeters > allowed_radius:
+        from backend.services.geofence import (
+            get_configured_polygon,
+            point_in_polygon,
+            polygon_centroid,
+            haversine_meters,
+        )
+        office_box = polygon or get_configured_polygon()
+
+        if payload.latitude is not None and payload.longitude is not None:
+            inside_box = point_in_polygon(payload.latitude, payload.longitude, office_box)
+            if not inside_box:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Outside office geofence box: your GPS position "
+                        f"({payload.latitude:.6f}, {payload.longitude:.6f}) is not inside "
+                        f"the {office_name} premises. Attendance can only be marked inside the office box."
+                    ),
+                )
+            # Verified inside — record diagnostics relative to the box centre.
+            c_lat, c_lng = polygon_centroid(office_box)
+            payload.distanceMeters = round(haversine_meters(payload.latitude, payload.longitude, c_lat, c_lng))
+            payload.withinRadius = True
+        elif not payload.withinRadius and payload.distanceMeters > allowed_radius:
             raise HTTPException(
                 status_code=400,
                 detail=f"GPS check failed: Current distance {round(payload.distanceMeters)}m exceeds allowed radius of {allowed_radius}m.",
@@ -131,6 +166,9 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "locationName": payload.locationName or office_name,
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
+                "insideGeofence": True,
+                "latitude": payload.latitude,
+                "longitude": payload.longitude,
                 "livenessVerified": True,
                 "managerName": emp.get("managerName", ""),
             }
@@ -163,6 +201,9 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "locationName": payload.locationName or office_name,
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
+                "insideGeofence": True,
+                "latitude": payload.latitude,
+                "longitude": payload.longitude,
                 "livenessVerified": True,
                 "managerName": emp.get("managerName", ""),
             }
@@ -377,9 +418,9 @@ async def get_employee_dashboard(employee_id: str):
         # Office location
         settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else {}
         office_location = settings_doc.get("officeLocation", {
-            "name": "Chennai Tech Park (HQ)",
+            "name": "Head Office Block",
             "allowedRadiusMeters": 150,
-        }) if settings_doc else {"name": "Chennai Tech Park (HQ)", "allowedRadiusMeters": 150}
+        }) if settings_doc else {"name": "Head Office Block", "allowedRadiusMeters": 150}
 
         return {
             "employeeId": employee_id,

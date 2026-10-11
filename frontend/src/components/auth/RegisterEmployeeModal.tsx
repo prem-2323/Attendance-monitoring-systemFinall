@@ -10,6 +10,7 @@ import {
   VideoOff,
   RefreshCw,
   ScanFace,
+  Wand2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
@@ -73,6 +74,19 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   }, [isOpen, useVirtualCam]);
 
   if (!isOpen) return null;
+
+  const handleAutofill = () => {
+    const n = users.filter((u) => u.role === 'employee').length + 1;
+    setName('Maya Krishnan');
+    setEmployeeId(`EMP00${n}`);
+    setEmail(`employee.demo${n}@company.com`);
+    setPhone('+91 98400 12345');
+    setDepartment('Engineering');
+    if (availableManagers[0]?.name) setManagerName(availableManagers[0].name);
+    setPassword('password123');
+    setFaceCaptured(true);
+    setErrorMsg('');
+  };
 
   const handleCaptureFace = () => {
     setIsCapturing(true);
@@ -166,6 +180,18 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-slate-500">New employee profile</span>
+            <button
+              type="button"
+              onClick={handleAutofill}
+              title="Autofill demo employee details (incl. face enrollment)"
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:border-emerald-500 hover:text-emerald-900 transition-all cursor-pointer"
+            >
+              <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
+              Autofill demo data
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">

@@ -122,7 +122,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 // Embedded forms with zero layout flicker:
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
-import { Camera, Check, AlertCircle, KeyRound, Building, Video, VideoOff } from 'lucide-react';
+import { Camera, Check, AlertCircle, KeyRound, Building, Video, VideoOff, Wand2 } from 'lucide-react';
 
 function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => void; onRegisteredSuccess?: (email: string) => void }) {
   const { addAdmin, login, users } = useApp();
@@ -135,6 +135,17 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
   const [autoLogin, setAutoLogin] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAutofill = () => {
+    const n = users.filter((u) => u.role === 'admin').length + 1;
+    setName('Ananya Iyer');
+    setEmployeeId(`ADM00${n}`);
+    setEmail(`admin.demo${n}@company.com`);
+    setPhone('+91 98401 22334');
+    setDepartment('System Administration');
+    setSecurityPasskey('AMS-ROOT-2026');
+    setErrorMsg('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,6 +190,18 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-slate-500">New admin profile</span>
+        <button
+          type="button"
+          onClick={handleAutofill}
+          title="Autofill demo admin details"
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900 transition-all cursor-pointer"
+        >
+          <Wand2 className="h-3.5 w-3.5 text-amber-500" />
+          Autofill demo data
+        </button>
+      </div>
       <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900 flex items-start gap-2">
         <KeyRound className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <span className="text-[11px] text-amber-800">
@@ -321,6 +344,17 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleAutofill = () => {
+    const n = users.filter((u) => u.role === 'manager').length + 1;
+    setName('Vikram Rathore');
+    setEmployeeId(`MGR00${n}`);
+    setEmail(`manager.demo${n}@company.com`);
+    setPhone('+91 98402 33445');
+    setDepartment('Engineering');
+    setTitle('Engineering Lead');
+    setErrorMsg('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -360,6 +394,18 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-slate-500">New manager profile</span>
+        <button
+          type="button"
+          onClick={handleAutofill}
+          title="Autofill demo manager details"
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-blue-300 bg-blue-50/50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:border-blue-500 hover:text-blue-900 transition-all cursor-pointer"
+        >
+          <Wand2 className="h-3.5 w-3.5 text-blue-500" />
+          Autofill demo data
+        </button>
+      </div>
       <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3 text-xs text-blue-900 flex items-start gap-2">
         <Building className="h-4 w-4 text-blue-700 shrink-0 mt-0.5" />
         <span className="text-[11px] text-blue-800">
@@ -510,6 +556,18 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleAutofill = () => {
+    const n = users.filter((u) => u.role === 'employee').length + 1;
+    setName('Maya Krishnan');
+    setEmployeeId(`EMP00${n}`);
+    setEmail(`employee.demo${n}@company.com`);
+    setPhone('+91 98400 12345');
+    setDepartment('Engineering');
+    if (availableManagers[0]?.name) setManagerName(availableManagers[0].name);
+    setFaceCaptured(true);
+    setErrorMsg('');
+  };
+
   const handleCaptureFace = () => {
     setIsCapturing(true);
     setTimeout(() => {
@@ -568,6 +626,18 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-slate-500">New employee profile</span>
+        <button
+          type="button"
+          onClick={handleAutofill}
+          title="Autofill demo employee details (incl. face enrollment)"
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:border-emerald-500 hover:text-emerald-900 transition-all cursor-pointer"
+        >
+          <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
+          Autofill demo data
+        </button>
+      </div>
       {errorMsg && (
         <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-2.5 text-xs text-rose-700 border border-rose-200">
           <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />

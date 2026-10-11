@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Skeleton, SkeletonAvatar } from './Skeleton';
+import { SafeImage } from './SafeImage';
 
 export const UserProfileView: React.FC = () => {
   const { currentUser, updateUserProfile, refreshUsers } = useApp();
@@ -129,10 +130,15 @@ export const UserProfileView: React.FC = () => {
         {/* Top Profile Card matching Section 13 */}
         <div className="flex flex-col sm:flex-row items-center gap-6 border-b border-slate-100 pb-8 text-center sm:text-left">
           <div className="relative">
-            <img
+            <SafeImage
               src={currentUser?.avatarUrl}
-              alt={currentUser?.name}
+              alt={currentUser?.name ?? 'User'}
               className="h-24 w-24 rounded-2xl object-cover ring-2 ring-slate-100 shadow-sm"
+              fallback={
+                <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-slate-900 text-xl font-bold text-white ring-2 ring-slate-100 shadow-sm">
+                  {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'}
+                </div>
+              }
             />
             <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xs">
               <Check className="h-4 w-4 stroke-3" />
@@ -232,7 +238,7 @@ export const UserProfileView: React.FC = () => {
             <span>Biometric Digital Pass Details</span>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed font-normal">
-            Digital Identity Pass Token: <span className="font-semibold text-slate-700">AMS-2026-BIO-{currentUser?.employeeId}</span> · Status: Active & Enrolled for Chennai Tech Park (HQ) Campus Geofence Access.
+            Digital Identity Pass Token: <span className="font-semibold text-slate-700">AMS-2026-BIO-{currentUser?.employeeId}</span> · Status: Active & Enrolled for Head Office Block Geofence Box Access.
           </p>
         </div>
       </div>

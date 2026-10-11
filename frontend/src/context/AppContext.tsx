@@ -64,6 +64,8 @@ interface AppContextType {
     distanceMeters: number;
     withinRadius: boolean;
     livenessVerified: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
   }) => Promise<{ success: boolean; message: string; record?: AttendanceRecord }>;
   applyLeave: (params: {
     employeeId: string;
@@ -551,12 +553,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     distanceMeters,
     withinRadius,
     livenessVerified,
+    latitude,
+    longitude,
   }: {
     employeeId: string;
     isCheckOut?: boolean;
     distanceMeters: number;
     withinRadius: boolean;
     livenessVerified: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
   }): Promise<{ success: boolean; message: string; record?: AttendanceRecord }> => {
     const emp = users.find((u) => u.employeeId === employeeId);
     if (!emp) {
@@ -566,9 +572,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!withinRadius) {
       return {
         success: false,
-        message: `GPS check failed: Current distance is ${Math.round(
-          distanceMeters
-        )}m, exceeding office geofence limit of ${officeLocation.allowedRadiusMeters}m.`,
+        message: `Outside office geofence box: attendance can only be marked inside the ${officeLocation.name} premises. Move inside the office box and retry.`,
       };
     }
 
@@ -586,6 +590,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         distanceMeters,
         withinRadius,
         livenessVerified,
+        latitude,
+        longitude,
         locationName: officeLocation.name,
       });
 

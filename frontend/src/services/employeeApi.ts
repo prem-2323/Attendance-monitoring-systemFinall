@@ -23,6 +23,9 @@ export interface MarkAttendancePayload {
   livenessVerified: boolean;
   locationName?: string;
   faceVector?: string;
+  /** Live GPS fix — server enforces the office geofence box from these. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface ApplyLeavePayload {
@@ -67,6 +70,9 @@ export interface EmployeeDashboardResponse {
   officeLocation: {
     name: string;
     allowedRadiusMeters: number;
+    lat?: number;
+    lng?: number;
+    geofencePolygon?: { lat: number; lng: number }[];
   };
 }
 

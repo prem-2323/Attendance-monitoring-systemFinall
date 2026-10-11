@@ -16,6 +16,12 @@ import {
   Building,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import {
+  OFFICE_GEOFENCE_POLYGON,
+  OFFICE_BOX_CENTER,
+  isInsideGeofenceBox,
+  haversineMeters,
+} from '../../utils/geofence';
 
 export const EmployeeMarkAttendance: React.FC = () => {
   const { currentUser, markAttendance, officeLocation, todayAttendance } = useApp();
@@ -45,9 +51,19 @@ export const EmployeeMarkAttendance: React.FC = () => {
   const [blinkDetected, setBlinkDetected] = useState<boolean>(false);
   const [movementDetected, setMovementDetected] = useState<boolean>(false);
 
-  // GPS Metrics
+  // GPS Metrics — office geofence BOX (attendance ONLY inside the polygon)
   const [calculatedDistance, setCalculatedDistance] = useState<number>(0);
-  const [withinOfficeRadius, setWithinOfficeRadius] = useState<boolean>(true);
+  const [withinOfficeRadius, setWithinOfficeRadius] = useState<boolean>(false);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const [gpsError, setGpsError] = useState<string>('');
+  // Ref mirror so staged-timeout callbacks never read a stale closure.
+  const geoRef = useRef<{ inside: boolean; lat: number | null; lng: number | null; dist: number }>({
+    inside: false,
+    lat: null,
+    lng: null,
+    dist: 0,
+  });
 
   // Result record after marking
   const [markedTimestamp, setMarkedTimestamp] = useState<string>('');
@@ -83,33 +99,47 @@ export const EmployeeMarkAttendance: React.FC = () => {
     };
   }, [useVirtualCamera]);
 
-  // Handle GPS location
+  // Handle GPS location — point-in-polygon test against the office box.
+  // Attendance is allowed ONLY when the device is inside the box.
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const R = 6371e3;
-          const φ1 = (pos.coords.latitude * Math.PI) / 180;
-          const φ2 = (officeLocation.lat * Math.PI) / 180;
-          const Δφ = ((officeLocation.lat - pos.coords.latitude) * Math.PI) / 180;
-          const Δλ = ((officeLocation.lng - pos.coords.longitude) * Math.PI) / 180;
-          const a =
-            Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const dist = Math.round(R * c);
+    const failClosed = (msg: string) => {
+      console.warn('Geolocation unavailable:', msg);
+      setCalculatedDistance(0);
+      setWithinOfficeRadius(false);
+      setUserLat(null);
+      setUserLng(null);
+      setGpsError(msg);
+      geoRef.current = { inside: false, lat: null, lng: null, dist: 0 };
+    };
 
-          setCalculatedDistance(dist);
-          setWithinOfficeRadius(dist <= officeLocation.allowedRadiusMeters);
-        },
-        (err) => {
-          console.warn('Geolocation read failed:', err);
-          setCalculatedDistance(0);
-          setWithinOfficeRadius(true);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
+    if (!navigator.geolocation) {
+      failClosed('Geolocation is not supported on this device.');
+      return;
     }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        // Prefer the live polygon from server settings, else the env box.
+        const polygon =
+          officeLocation.geofencePolygon && officeLocation.geofencePolygon.length >= 3
+            ? officeLocation.geofencePolygon
+            : OFFICE_GEOFENCE_POLYGON;
+        const inside = isInsideGeofenceBox(lat, lng, polygon);
+        const dist = Math.round(haversineMeters(lat, lng, OFFICE_BOX_CENTER.lat, OFFICE_BOX_CENTER.lng));
+
+        setCalculatedDistance(dist);
+        setWithinOfficeRadius(inside);
+        setUserLat(lat);
+        setUserLng(lng);
+        setGpsError(inside ? '' : 'You are outside the office geofence box.');
+        geoRef.current = { inside, lat, lng, dist };
+      },
+      (err) => {
+        failClosed('Location access denied or unavailable — cannot verify office box.');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
   }, [officeLocation]);
 
   // Sequential Verification Runner
@@ -171,8 +201,16 @@ export const EmployeeMarkAttendance: React.FC = () => {
     setVerificationStage('gps_checking');
     setGpsStatus('checking');
 
-    // Step 4: GPS Geofence Check (800ms)
+    // Step 4: GPS Geofence Box Check (800ms) — must be inside the box.
     setTimeout(() => {
+      if (!geoRef.current.inside) {
+        setGpsStatus('pending');
+        setVerificationStage('idle');
+        setErrorMessage(
+          'Outside office geofence box: move inside the office premises and press "Start Verification" again. Attendance is allowed only inside the box.'
+        );
+        return;
+      }
       setGpsStatus('verified');
       setVerificationStage('ready_to_mark');
     }, 800);
@@ -187,12 +225,15 @@ export const EmployeeMarkAttendance: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      const geo = geoRef.current;
       const result = await markAttendance({
         employeeId: currentUser.employeeId,
         isCheckOut: isCheckOutMode,
-        distanceMeters: calculatedDistance,
-        withinRadius: withinOfficeRadius,
+        distanceMeters: geo.dist ?? calculatedDistance,
+        withinRadius: geo.inside && withinOfficeRadius,
         livenessVerified: livenessStatus === 'verified',
+        latitude: geo.lat ?? userLat,
+        longitude: geo.lng ?? userLng,
       });
 
       if (result.success) {
@@ -517,7 +558,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
               <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <span className="font-medium text-slate-700">GPS Verification</span>
                 {gpsStatus === 'pending' && <span className="text-slate-400">Waiting</span>}
-                {gpsStatus === 'checking' && <span className="text-blue-600 font-semibold animate-pulse">Checking office radius...</span>}
+                {gpsStatus === 'checking' && <span className="text-blue-600 font-semibold animate-pulse">Checking office box...</span>}
                 {gpsStatus === 'verified' && <span className="text-emerald-600 font-semibold flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Location verified ✓</span>}
               </div>
             </div>
@@ -541,7 +582,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
                 <div className="relative h-2.5 w-2.5 rounded-full bg-emerald-400 ring-4 ring-emerald-400/20" />
               </div>
 
-              {/* Location Details matching Section 18 */}
+              {/* Location Details — office geofence box */}
               <div className="space-y-1 text-xs">
                 <div className="text-[11px] text-slate-400 font-medium">Office Location</div>
                 <div className="font-bold text-slate-900 flex items-center gap-1">
@@ -549,11 +590,20 @@ export const EmployeeMarkAttendance: React.FC = () => {
                   <span>{officeLocation.name}</span>
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Radius: <strong>{officeLocation.allowedRadiusMeters}m</strong> · Distance: <strong>{calculatedDistance}m</strong>
+                  Geofence: <strong>office box ({(officeLocation.geofencePolygon ?? OFFICE_GEOFENCE_POLYGON).length} corners)</strong>
+                  {userLat !== null && userLng !== null && (
+                    <span> · You: <strong>{userLat.toFixed(6)}, {userLng.toFixed(6)}</strong> ({calculatedDistance}m from centre)</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-semibold text-emerald-600">
-                  Status: Location Verified ✓
-                </div>
+                {withinOfficeRadius ? (
+                  <div className="text-[11px] font-semibold text-emerald-600">
+                    Status: Inside office box ✓
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-semibold text-rose-600">
+                    Status: Outside office box{gpsError ? ` — ${gpsError}` : ' — attendance blocked'}
+                  </div>
+                )}
               </div>
             </div>
           </div>

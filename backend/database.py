@@ -46,80 +46,30 @@ approval_audits_collection = db["approval_audits"]  if db is not None else None
 leave_requests_collection  = db["leave_requests"]   if db is not None else None
 
 def seed_initial_users():
-    """Seed initial corporate users into MongoDB if users collection is empty."""
-    if users_collection is None:
-        return
-    try:
-        if users_collection.count_documents({}) == 0:
-            from backend.services.auth_service import hash_password
-            default_pw_hash = hash_password("password123")
-            seed_data = [
-                {
-                    "id": "user-admin",
-                    "name": "Rajesh Sharma",
-                    "email": "admin@company.com",
-                    "employeeId": "ADM001",
-                    "role": "admin",
-                    "department": "Executive Operations",
-                    "phone": "+91 98765 43210",
-                    "avatarUrl": "",
-                    "faceRegistered": True,
-                    "joinDate": "2023-01-15",
-                    "active": True,
-                    "title": "Chief Operations Administrator",
-                    "password_hash": default_pw_hash,
-                },
-                {
-                    "id": "user-mgr-1",
-                    "name": "Kumar Verma",
-                    "email": "kumar.verma@company.com",
-                    "employeeId": "MGR001",
-                    "role": "manager",
-                    "department": "Engineering",
-                    "phone": "+91 98401 23456",
-                    "avatarUrl": "",
-                    "faceRegistered": True,
-                    "joinDate": "2023-04-10",
-                    "active": True,
-                    "title": "Engineering Director",
-                    "password_hash": default_pw_hash,
-                },
-                {
-                    "id": "user-mgr-2",
-                    "name": "Priya Sundaram",
-                    "email": "priya.s@company.com",
-                    "employeeId": "MGR002",
-                    "role": "manager",
-                    "department": "Product & Operations",
-                    "phone": "+91 98841 87654",
-                    "avatarUrl": "",
-                    "faceRegistered": True,
-                    "joinDate": "2023-06-01",
-                    "active": True,
-                    "title": "Head of Product Design",
-                    "password_hash": default_pw_hash,
-                },
-            ]
-            users_collection.insert_many(seed_data)
-            print("[DB] Initial administrative accounts seeded into MongoDB Atlas.")
-    except Exception as seed_err:
-        print(f"[DB] Seed note: {seed_err}")
+    """No-op: Seed user data removed. All user accounts are created dynamically through live registration."""
+    pass
 
 def seed_initial_settings():
-    """Seed default geofence office location and smart hours in MongoDB Atlas."""
+    """Seed default geofence office box location and smart hours in MongoDB Atlas."""
     if settings_collection is None:
         return
     try:
-        if settings_collection.count_documents({}) == 0:
+        from backend.services.geofence import get_configured_polygon, polygon_centroid
+        from backend.config import OFFICE_NAME, OFFICE_ADDRESS
+        box = get_configured_polygon()
+        c_lat, c_lng = polygon_centroid(box)
+        existing = settings_collection.find_one({"key": "global_settings"})
+        if existing is None:
             doc = {
                 "key": "global_settings",
                 "officeLocation": {
-                    "name": "Chennai Tech Park (HQ)",
-                    "address": "Block B, OMR Cyber Corridor, Chennai, TN 600096",
-                    "lat": 12.9815,
-                    "lng": 80.218,
+                    "name": OFFICE_NAME,
+                    "address": OFFICE_ADDRESS,
+                    "lat": c_lat,
+                    "lng": c_lng,
                     "allowedRadiusMeters": 150,
                 },
+                "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in box],
                 "smartHoursConfig": {
                     "expectedHoursPerDay": 8,
                     "graceCheckInMinutes": 15,
@@ -128,7 +78,14 @@ def seed_initial_settings():
                 },
             }
             settings_collection.insert_one(doc)
-            print("[DB] Initial settings seeded into MongoDB Atlas.")
+            print("[DB] Office geofence box settings seeded into MongoDB Atlas.")
+        elif not existing.get("geofencePolygon"):
+            # Backfill the box on existing deployments without touching admin edits.
+            settings_collection.update_one(
+                {"key": "global_settings"},
+                {"$set": {"geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in box]}},
+            )
+            print("[DB] Office geofence box backfilled into existing settings.")
     except Exception as e:
         print(f"[DB] Settings seed note: {e}")
 

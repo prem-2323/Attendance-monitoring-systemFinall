@@ -39,11 +39,12 @@ class AttendanceOverrideRequest(BaseModel):
 
 
 class OfficeSettingsUpdateRequest(BaseModel):
-    name: Optional[str] = "Chennai Tech Park (HQ)"
-    address: Optional[str] = "Block B, OMR Cyber Corridor, Chennai, TN 600096"
-    lat: Optional[float] = 12.9815
-    lng: Optional[float] = 80.218
+    name: Optional[str] = "Head Office Block"
+    address: Optional[str] = "Office Campus Premises, Tamil Nadu"
+    lat: Optional[float] = 11.144035200242794
+    lng: Optional[float] = 77.32559123601078
     allowedRadiusMeters: Optional[int] = 150
+    geofencePolygon: Optional[List[Dict[str, float]]] = None
 
 
 class SmartHoursUpdateRequest(BaseModel):

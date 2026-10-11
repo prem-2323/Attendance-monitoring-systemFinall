@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronRight,
+  Zap,
+  Wand2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
@@ -23,6 +25,14 @@ import { RegisterAdminModal } from './RegisterAdminModal';
 import { RegisterManagerModal } from './RegisterManagerModal';
 import { RegisterEmployeeModal } from './RegisterEmployeeModal';
 import { UserRole } from '../../types';
+
+// Demo credentials backed by backend auto-provisioning in `backend/routes/auth.py`.
+// Any of these passwords pass validation: password123 / demoPass2026! / admin123 / test123
+const DEMO_ACCOUNTS: { role: UserRole; label: string; email: string; password: string; hint: string }[] = [
+  { role: 'admin', label: 'Admin', email: 'admin@company.com', password: 'password123', hint: 'ADM001' },
+  { role: 'manager', label: 'Manager', email: 'manager@company.com', password: 'password123', hint: 'MGR001' },
+  { role: 'employee', label: 'Employee', email: 'employee@company.com', password: 'password123', hint: 'EMP001' },
+];
 
 export const LoginView: React.FC = () => {
   const { login } = useApp();
@@ -66,6 +76,33 @@ export const LoginView: React.FC = () => {
 
     setAuthTab('login');
     setSuccessMsg(`Account registered successfully in MongoDB Atlas for ${newEmail}. You can sign in.`);
+  };
+
+  const handleDemoAutofill = (demo: (typeof DEMO_ACCOUNTS)[number]) => {
+    setIdentifier(demo.email);
+    setPassword(demo.password);
+    setErrorMsg('');
+    setSuccessMsg(`Autofilled ${demo.label} credentials (${demo.email} / ${demo.password}). Press "Sign in to Dashboard" to continue, or use "Sign in" below for 1-click login.`);
+  };
+
+  const handleDemoSignIn = async (demo: (typeof DEMO_ACCOUNTS)[number]) => {
+    setIdentifier(demo.email);
+    setPassword(demo.password);
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.login(demo.email, demo.password);
+      if (res.user) {
+        login(res.user.email, undefined, res.user);
+      } else {
+        setErrorMsg('Invalid credentials. Check Email or Employee ID.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Invalid credentials. Check Email or Employee ID.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -121,10 +158,10 @@ export const LoginView: React.FC = () => {
             <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-xs">
               <div className="flex items-center gap-2.5 text-blue-400 font-semibold text-xs">
                 <MapPin className="h-4 w-4" />
-                <span>GPS Geofencing</span>
+                <span>GPS Geofence Box</span>
               </div>
               <p className="mt-1 text-[11px] text-slate-400 leading-normal">
-                Haversine formula enforcement with 150m campus perimeter.
+                Polygon premises boundary — attendance only inside the office box.
               </p>
             </div>
 
@@ -294,6 +331,57 @@ export const LoginView: React.FC = () => {
                   </button>
                 </div>
               </form>
+
+              {/* Demo Quick Access: Autofill + 1-click Sign in for all 3 roles */}
+              <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-3">
+                <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-600 mb-2.5">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Demo quick access — Autofill & Sign in (Admin / Manager / Employee)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {DEMO_ACCOUNTS.map((demo) => (
+                    <div
+                      key={demo.role}
+                      className="flex flex-col rounded-lg border border-slate-200 bg-white p-2 text-center shadow-xs"
+                    >
+                      <span className="text-[11px] font-bold text-slate-900 flex items-center justify-center gap-1">
+                        {demo.role === 'admin' && <ShieldCheck className="h-3.5 w-3.5" />}
+                        {demo.role === 'manager' && <UserCheck className="h-3.5 w-3.5 text-blue-600" />}
+                        {demo.role === 'employee' && <UserIcon className="h-3.5 w-3.5 text-emerald-600" />}
+                        {demo.label}
+                      </span>
+                      <span className="mt-0.5 truncate text-[10px] text-slate-400" title={demo.email}>
+                        {demo.email}
+                      </span>
+                      <span className="truncate text-[10px] font-medium text-slate-400" title={demo.hint}>
+                        ID: {demo.hint}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => handleDemoAutofill(demo)}
+                        title={`Autofill ${demo.label} credentials into the form`}
+                        className="mt-1.5 flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-900 disabled:opacity-50 transition-all cursor-pointer"
+                      >
+                        <Wand2 className="h-3 w-3" />
+                        Autofill
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => handleDemoSignIn(demo)}
+                        title={`Autofill & sign in as ${demo.label}`}
+                        className="mt-1 rounded-md bg-slate-900 py-1 text-[11px] font-semibold text-white hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-center text-[10px] leading-normal text-slate-400">
+                  Autofill fills Email + password (password123). Sign in fills & logs in instantly.
+                </p>
+              </div>
 
               {/* Dedicated Registration Links by Role */}
               <div className="mt-6 border-t border-slate-200/80 pt-5">

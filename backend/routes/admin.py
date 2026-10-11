@@ -517,14 +517,17 @@ async def get_settings():
     Retrieves global office geofencing coordinates and smart hours policy from MongoDB Atlas.
     """
     try:
+        from backend.services.geofence import get_configured_polygon
+        _box = get_configured_polygon()
         default_settings = {
             "officeLocation": {
-                "name": "Chennai Tech Park (HQ)",
-                "address": "Block B, OMR Cyber Corridor, Chennai, TN 600096",
-                "lat": 12.9815,
-                "lng": 80.218,
+                "name": "Head Office Block",
+                "address": "Office Campus Premises, Tamil Nadu",
+                "lat": sum(p[0] for p in _box) / len(_box),
+                "lng": sum(p[1] for p in _box) / len(_box),
                 "allowedRadiusMeters": 150,
             },
+            "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in _box],
             "smartHoursConfig": {
                 "expectedHoursPerDay": 8,
                 "graceCheckInMinutes": 15,
@@ -543,6 +546,7 @@ async def get_settings():
 
         return {
             "officeLocation": doc.get("officeLocation", default_settings["officeLocation"]),
+            "geofencePolygon": doc.get("geofencePolygon", default_settings["geofencePolygon"]),
             "smartHoursConfig": doc.get("smartHoursConfig", default_settings["smartHoursConfig"]),
         }
     except Exception as e:
@@ -573,7 +577,22 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
             upsert=True,
         )
 
-        return {"success": True, "officeLocation": update_dict}
+        response: Dict[str, Any] = {"success": True, "officeLocation": update_dict}
+        if payload.geofencePolygon:
+            clean_poly = [
+                {"lat": float(p["lat"]), "lng": float(p["lng"])}
+                for p in payload.geofencePolygon
+                if isinstance(p, dict) and "lat" in p and "lng" in p
+            ]
+            if len(clean_poly) >= 3:
+                settings_collection.update_one(
+                    {"key": "global_settings"},
+                    {"$set": {"geofencePolygon": clean_poly}},
+                    upsert=True,
+                )
+                response["geofencePolygon"] = clean_poly
+
+        return response
     except HTTPException:
         raise
     except Exception as e:

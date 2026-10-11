@@ -243,10 +243,75 @@ async def login(payload: LoginRequest):
         user = users_collection.find_one({"email": {"$regex": term, "$options": "i"}})
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account not found. Please verify your Email or Employee ID.",
-        )
+        # On-demand provision for standard autofill accounts if not already created
+        term_lower = term.lower()
+        from backend.services.auth_service import hash_password
+        if term_lower in ["admin@company.com", "adm001", "admin"]:
+            user = {
+                "id": "user-admin-demo",
+                "name": "System Administrator",
+                "email": "admin@company.com",
+                "employeeId": "ADM001",
+                "role": "admin",
+                "department": "Executive Operations",
+                "phone": "+91 98765 43210",
+                "avatarUrl": "",
+                "faceRegistered": True,
+                "joinDate": "2024-01-01",
+                "active": True,
+                "title": "Chief Operations Administrator",
+                "password_hash": hash_password("password123"),
+            }
+            try:
+                users_collection.insert_one(user)
+            except Exception:
+                pass
+        elif term_lower in ["manager@company.com", "mgr001", "manager", "kumar.verma@company.com"]:
+            user = {
+                "id": "user-mgr-demo",
+                "name": "Engineering Manager",
+                "email": "manager@company.com",
+                "employeeId": "MGR001",
+                "role": "manager",
+                "department": "Engineering",
+                "phone": "+91 98401 23456",
+                "avatarUrl": "",
+                "faceRegistered": True,
+                "joinDate": "2024-01-01",
+                "active": True,
+                "title": "Engineering Director",
+                "password_hash": hash_password("password123"),
+            }
+            try:
+                users_collection.insert_one(user)
+            except Exception:
+                pass
+        elif term_lower in ["employee@company.com", "emp001", "employee"]:
+            user = {
+                "id": "user-emp-demo",
+                "name": "Staff Employee",
+                "email": "employee@company.com",
+                "employeeId": "EMP001",
+                "role": "employee",
+                "department": "Engineering",
+                "phone": "+91 98840 12345",
+                "avatarUrl": "",
+                "faceRegistered": True,
+                "faceVector": "VEC-128-DEMO",
+                "joinDate": "2024-01-01",
+                "active": True,
+                "title": "Software Engineer",
+                "password_hash": hash_password("password123"),
+            }
+            try:
+                users_collection.insert_one(user)
+            except Exception:
+                pass
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account not found. Please verify your Email or Employee ID.",
+            )
 
     # Validate password if provided (allow demo shortcuts)
     if payload.password and payload.password.strip():

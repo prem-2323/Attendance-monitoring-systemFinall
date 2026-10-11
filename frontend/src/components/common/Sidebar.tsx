@@ -21,6 +21,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { SafeImage } from './SafeImage';
 
 interface SidebarProps {
   currentTab: string;
@@ -349,10 +350,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="border-t border-slate-100 p-3 space-y-2">
           <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
             <div className="flex items-center gap-2.5">
-              <img
+              <SafeImage
                 src={currentUser?.avatarUrl}
-                alt={currentUser?.name}
+                alt={currentUser?.name ?? 'User'}
                 className="h-8 w-8 rounded-lg object-cover ring-1 ring-slate-200"
+                fallback={
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-[11px] font-bold text-white">
+                    {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'}
+                  </div>
+                }
               />
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold text-slate-900 truncate">

@@ -19,6 +19,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { User } from '../../types';
 import { Skeleton } from '../common/Skeleton';
+import { SafeImage } from '../common/SafeImage';
 
 interface AdminEmployeesProps {
   onNavigateAddEmployee: () => void;
@@ -204,10 +205,15 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-900">
                       <div className="flex items-center gap-3">
-                        <img
+                        <SafeImage
                           src={emp.avatarUrl}
                           alt={emp.name}
                           className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200"
+                          fallback={
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">
+                              {emp.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          }
                         />
                         <div>
                           <div>{emp.name}</div>
@@ -282,10 +288,15 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
             </div>
 
             <div className="mt-4 flex flex-col items-center text-center">
-              <img
+              <SafeImage
                 src={selectedUser.avatarUrl}
                 alt={selectedUser.name}
                 className="h-20 w-20 rounded-2xl object-cover ring-2 ring-slate-100"
+                fallback={
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white ring-2 ring-slate-100">
+                    {selectedUser.name.slice(0, 2).toUpperCase()}
+                  </div>
+                }
               />
               <h4 className="mt-3 text-base font-bold text-slate-900">{selectedUser.name}</h4>
               <p className="text-xs text-slate-500">{selectedUser.employeeId} · {selectedUser.department}</p>

@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { SafeImage } from '../common/SafeImage';
 
 interface AdminAddManagerProps {
   onCancel: () => void;
@@ -296,10 +297,15 @@ export const AdminAddManager: React.FC<AdminAddManagerProps> = ({ onCancel, onSu
                     onChange={() => {}}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
                   />
-                  <img
+                  <SafeImage
                     src={emp.avatarUrl}
                     alt={emp.name}
                     className="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200"
+                    fallback={
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[9px] font-bold text-slate-600">
+                        {emp.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    }
                   />
                   <div className="truncate">
                     <div className="text-xs truncate">{emp.name}</div>

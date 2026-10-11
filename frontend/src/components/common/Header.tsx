@@ -95,7 +95,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
           </span>
           <MapPin className="h-3.5 w-3.5 text-emerald-600" />
           <span className="font-bold text-emerald-950">{officeLocation.name}</span>
-          <span className="text-emerald-700 font-medium text-[11px]">({officeLocation.allowedRadiusMeters}m geofence active)</span>
+          <span className="text-emerald-700 font-medium text-[11px]">(office box geofence active)</span>
         </div>
       </div>
 

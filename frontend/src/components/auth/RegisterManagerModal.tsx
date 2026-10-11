@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, UserCheck, AlertCircle, Building, Mail, Phone, Users, CheckCircle2 } from 'lucide-react';
+import { X, UserCheck, AlertCircle, Building, Mail, Phone, Users, CheckCircle2, Wand2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
 
@@ -27,6 +27,18 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleAutofill = () => {
+    const n = users.filter((u) => u.role === 'manager').length + 1;
+    setName('Vikram Rathore');
+    setEmployeeId(`MGR00${n}`);
+    setEmail(`manager.demo${n}@company.com`);
+    setPhone('+91 98402 33445');
+    setDepartment('Engineering');
+    setTitle('Engineering Lead');
+    setPassword('password123');
+    setErrorMsg('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +115,18 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-slate-500">New manager profile</span>
+            <button
+              type="button"
+              onClick={handleAutofill}
+              title="Autofill demo manager details"
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-blue-300 bg-blue-50/50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:border-blue-500 hover:text-blue-900 transition-all cursor-pointer"
+            >
+              <Wand2 className="h-3.5 w-3.5 text-blue-500" />
+              Autofill demo data
+            </button>
+          </div>
           <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3 text-xs text-blue-900 flex items-start gap-2">
             <Building className="h-4 w-4 text-blue-700 shrink-0 mt-0.5" />
             <div>

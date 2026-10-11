@@ -81,6 +81,8 @@ export interface OfficeLocation {
   lat: number;
   lng: number;
   allowedRadiusMeters: number;
+  /** Office geofence box corners — attendance allowed ONLY inside this polygon. */
+  geofencePolygon?: { lat: number; lng: number }[];
 }
 
 export interface SmartHoursConfig {
