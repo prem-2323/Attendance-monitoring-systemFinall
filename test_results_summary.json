@@ -27,7 +27,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "manager"
+    "detail": "dhanushiyaa"
   },
   {
     "category": "2. Authentication",
@@ -96,7 +96,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Dispatched OTP: 9950"
+    "detail": "Dispatched OTP: 5924"
   },
   {
     "category": "4. Forgot Password",
@@ -126,7 +126,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Count: 8"
+    "detail": "Count: 6"
   },
   {
     "category": "5. Directory",
@@ -156,7 +156,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Total: 3"
+    "detail": "Total: 2"
   },
   {
     "category": "6. Admin Portal",
@@ -216,7 +216,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Chennai Tech Park (HQ)"
+    "detail": "Head Office Block"
   },
   {
     "category": "6. Admin Portal",
@@ -256,7 +256,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Attendance verified via Face + GPS at 07:44 PM! Status: Late."
+    "detail": "Attendance verified via Face + GPS at 09:10 PM! Status: Late."
   },
   {
     "category": "7. Employee Portal",
@@ -266,7 +266,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Check-out successfully recorded at 07:44 PM! Logged 0h 00m worked."
+    "detail": "Check-out successfully recorded at 09:10 PM! Logged 0h 00m worked."
   },
   {
     "category": "7. Employee Portal",
@@ -276,7 +276,7 @@
     "expected_status": 201,
     "actual_status": 201,
     "passed": true,
-    "detail": "Leave ID: leave-1791728088598"
+    "detail": "Leave ID: leave-1791733254062"
   },
   {
     "category": "7. Employee Portal",
@@ -326,7 +326,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Team count: 3"
+    "detail": "Team count: 2"
   },
   {
     "category": "8. Manager Portal",
@@ -336,7 +336,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Roster count: 3"
+    "detail": "Roster count: 2"
   },
   {
     "category": "8. Manager Portal",
@@ -386,7 +386,7 @@
     "expected_status": 200,
     "actual_status": 200,
     "passed": true,
-    "detail": "Records: 2"
+    "detail": "Records: 3"
   },
   {
     "category": "9. Reports & Analytics",

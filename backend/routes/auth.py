@@ -46,17 +46,33 @@ async def register_admin(payload: AdminRegisterRequest):
     email = payload.email.strip().lower()
     employee_id = payload.employeeId.strip()
 
-    # Check for existing email or employee ID
-    existing = users_collection.find_one({
-        "$or": [
-            {"email": {"$regex": f"^{email}$", "$options": "i"}},
-            {"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}},
-        ]
-    })
-    if existing:
+    existing_by_email = users_collection.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+    existing_by_id = users_collection.find_one({"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}})
+    if existing_by_email and existing_by_id and str(existing_by_email.get("_id")) != str(existing_by_id.get("_id")):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email or Admin ID already exists in MongoDB Atlas.",
+            detail=f"Conflict: ID '{employee_id}' and email '{email}' belong to different existing users.",
+        )
+
+    existing = existing_by_email or existing_by_id
+    if existing:
+        update_fields = {
+            "name": payload.name.strip(),
+            "phone": payload.phone.strip() if payload.phone else existing.get("phone", "+91 "),
+            "department": payload.department or existing.get("department", "System Administration"),
+        }
+        if payload.password and payload.password.strip():
+            update_fields["password_hash"] = hash_password(payload.password.strip())
+        users_collection.update_one({"_id": existing["_id"]}, {"$set": update_fields})
+        updated = users_collection.find_one({"_id": existing["_id"]})
+        logger.info(f"[Auth] Admin profile synced: {email}")
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "success": True,
+                "message": f"Administrator '{payload.name}' account updated successfully.",
+                "user": serialize_user(updated),
+            },
         )
 
     admin_doc = {
@@ -101,16 +117,34 @@ async def register_manager(payload: ManagerRegisterRequest):
     email = payload.email.strip().lower()
     employee_id = payload.employeeId.strip()
 
-    existing = users_collection.find_one({
-        "$or": [
-            {"email": {"$regex": f"^{email}$", "$options": "i"}},
-            {"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}},
-        ]
-    })
-    if existing:
+    existing_by_email = users_collection.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+    existing_by_id = users_collection.find_one({"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}})
+    if existing_by_email and existing_by_id and str(existing_by_email.get("_id")) != str(existing_by_id.get("_id")):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email or Manager ID already exists in MongoDB Atlas.",
+            detail=f"Conflict: ID '{employee_id}' and email '{email}' belong to different existing users.",
+        )
+
+    existing = existing_by_email or existing_by_id
+    if existing:
+        update_fields = {
+            "name": payload.name.strip(),
+            "phone": payload.phone.strip() if payload.phone else existing.get("phone", "+91 "),
+            "department": payload.department or existing.get("department", "Engineering"),
+            "title": payload.title or existing.get("title", "Engineering Lead"),
+        }
+        if payload.password and payload.password.strip():
+            update_fields["password_hash"] = hash_password(payload.password.strip())
+        users_collection.update_one({"_id": existing["_id"]}, {"$set": update_fields})
+        updated = users_collection.find_one({"_id": existing["_id"]})
+        logger.info(f"[Auth] Manager profile synced: {email}")
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "success": True,
+                "message": f"Manager '{payload.name}' account updated successfully.",
+                "user": serialize_user(updated),
+            },
         )
 
     mgr_doc = {
@@ -155,16 +189,46 @@ async def register_employee(payload: EmployeeRegisterRequest):
     email = payload.email.strip().lower()
     employee_id = payload.employeeId.strip()
 
-    existing = users_collection.find_one({
-        "$or": [
-            {"email": {"$regex": f"^{email}$", "$options": "i"}},
-            {"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}},
-        ]
-    })
-    if existing:
+    existing_by_email = users_collection.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+    existing_by_id = users_collection.find_one({"employeeId": {"$regex": f"^{employee_id}$", "$options": "i"}})
+    if existing_by_email and existing_by_id and str(existing_by_email.get("_id")) != str(existing_by_id.get("_id")):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email or Employee ID already exists in MongoDB Atlas.",
+            detail=f"Conflict: ID '{employee_id}' and email '{email}' belong to different existing users.",
+        )
+
+    existing = existing_by_email or existing_by_id
+    if existing:
+        update_doc = {
+            "name": payload.name.strip() or existing.get("name"),
+            "employeeId": employee_id,
+            "email": email,
+            "phone": payload.phone.strip() if payload.phone else existing.get("phone", "+91 "),
+            "department": payload.department or existing.get("department", "Engineering"),
+            "managerId": payload.managerId or existing.get("managerId"),
+            "managerName": payload.managerName or existing.get("managerName", ""),
+            "faceRegistered": bool(payload.faceRegistered),
+            "faceVector": payload.faceVector or ("VEC-128-ENROLLED-PASSIVE" if payload.faceRegistered else existing.get("faceVector")),
+            "avatarUrl": payload.avatarUrl or existing.get("avatarUrl", ""),
+        }
+        if payload.password and payload.password.strip():
+            update_doc["password_hash"] = hash_password(payload.password.strip())
+        users_collection.update_one({"_id": existing["_id"]}, {"$set": update_doc})
+        updated = users_collection.find_one({"_id": existing["_id"]})
+        if employees_collection is not None:
+            employees_collection.update_one(
+                {"employee_id": employee_id},
+                {"$set": {"employee_id": employee_id, "name": payload.name.strip()}},
+                upsert=True,
+            )
+        logger.info(f"[Auth] Employee profile synced/re-enrolled: {email}")
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "success": True,
+                "message": f"Employee '{payload.name}' enrolled & updated successfully.",
+                "user": serialize_user(updated),
+            },
         )
 
     emp_doc = {

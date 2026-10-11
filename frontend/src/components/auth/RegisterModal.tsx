@@ -125,9 +125,14 @@ import { authApi } from '../../services/authApi';
 import { Camera, Check, AlertCircle, KeyRound, Building, Video, VideoOff, Wand2 } from 'lucide-react';
 
 function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => void; onRegisteredSuccess?: (email: string) => void }) {
-  const { addAdmin, login, users } = useApp();
+  const { addRegisteredUserToState, login, users } = useApp();
+  const nextAdmNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/ADM(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`ADM00${users.filter((u) => u.role === 'admin').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`ADM${String(Math.max(nextAdmNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('System Administration');
@@ -137,9 +142,9 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAutofill = () => {
-    const n = users.filter((u) => u.role === 'admin').length + 1;
+    const n = nextAdmNum;
     setName('Ananya Iyer');
-    setEmployeeId(`ADM00${n}`);
+    setEmployeeId(`ADM${String(Math.max(n, 1)).padStart(3, '0')}`);
     setEmail(`admin.demo${n}@company.com`);
     setPhone('+91 98401 22334');
     setDepartment('System Administration');
@@ -170,14 +175,7 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
         securityPasskey: securityPasskey.trim(),
       });
       const newAdmin = res.user;
-      addAdmin({
-        name: newAdmin.name,
-        employeeId: newAdmin.employeeId,
-        email: newAdmin.email,
-        phone: newAdmin.phone,
-        department: newAdmin.department,
-        title: newAdmin.title || 'System Administrator',
-      });
+      addRegisteredUserToState(newAdmin);
       if (autoLogin) login(newAdmin.email, undefined, newAdmin);
       else if (onRegisteredSuccess) onRegisteredSuccess(newAdmin.email);
       onClose();
@@ -333,9 +331,14 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
 }
 
 function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => void; onRegisteredSuccess?: (email: string) => void }) {
-  const { addManager, login, users } = useApp();
+  const { addRegisteredUserToState, login, users } = useApp();
+  const nextMgrNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/MGR(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`MGR00${users.filter((u) => u.role === 'manager').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`MGR${String(Math.max(nextMgrNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('Engineering');
@@ -345,9 +348,9 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAutofill = () => {
-    const n = users.filter((u) => u.role === 'manager').length + 1;
+    const n = nextMgrNum;
     setName('Vikram Rathore');
-    setEmployeeId(`MGR00${n}`);
+    setEmployeeId(`MGR${String(Math.max(n, 1)).padStart(3, '0')}`);
     setEmail(`manager.demo${n}@company.com`);
     setPhone('+91 98402 33445');
     setDepartment('Engineering');
@@ -374,14 +377,7 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
         title: title.trim(),
       });
       const newMgr = res.user;
-      addManager({
-        name: newMgr.name,
-        employeeId: newMgr.employeeId,
-        email: newMgr.email,
-        phone: newMgr.phone,
-        department: newMgr.department,
-        title: newMgr.title,
-      });
+      addRegisteredUserToState(newMgr);
       if (autoLogin) login(newMgr.email, undefined, newMgr);
       else if (onRegisteredSuccess) onRegisteredSuccess(newMgr.email);
       onClose();
@@ -542,9 +538,14 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
 }
 
 function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () => void; onRegisteredSuccess?: (email: string) => void }) {
-  const { addEmployee, login, users } = useApp();
+  const { addRegisteredUserToState, login, users } = useApp();
+  const nextEmpNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/EMP(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`EMP00${users.filter((u) => u.role === 'employee').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`EMP${String(Math.max(nextEmpNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('Engineering');
@@ -557,9 +558,9 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAutofill = () => {
-    const n = users.filter((u) => u.role === 'employee').length + 1;
+    const n = nextEmpNum;
     setName('Maya Krishnan');
-    setEmployeeId(`EMP00${n}`);
+    setEmployeeId(`EMP${String(Math.max(n, 1)).padStart(3, '0')}`);
     setEmail(`employee.demo${n}@company.com`);
     setPhone('+91 98400 12345');
     setDepartment('Engineering');
@@ -601,18 +602,7 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
       });
 
       const newEmp = res.user;
-      addEmployee({
-        name: newEmp.name,
-        employeeId: newEmp.employeeId,
-        email: newEmp.email,
-        phone: newEmp.phone,
-        department: newEmp.department,
-        managerId: newEmp.managerId,
-        managerName: newEmp.managerName,
-        role: 'employee',
-        faceRegistered: newEmp.faceRegistered,
-        faceVector: newEmp.faceVector,
-      });
+      addRegisteredUserToState(newEmp);
 
       if (autoLogin) login(newEmp.email, undefined, newEmp);
       else if (onRegisteredSuccess) onRegisteredSuccess(newEmp.email);

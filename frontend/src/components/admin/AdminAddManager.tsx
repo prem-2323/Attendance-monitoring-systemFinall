@@ -24,9 +24,13 @@ interface AdminAddManagerProps {
 export const AdminAddManager: React.FC<AdminAddManagerProps> = ({ onCancel, onSuccess }) => {
   const { addManager, users } = useApp();
 
-  const nextMgrNum = users.filter((u) => u.role === 'manager').length + 1;
+  const nextMgrNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/MGR(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`MGR00${nextMgrNum}`);
+  const [employeeId, setEmployeeId] = useState(`MGR${String(Math.max(nextMgrNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');

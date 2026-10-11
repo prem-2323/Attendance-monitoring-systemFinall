@@ -14,9 +14,14 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
   onClose,
   onRegisteredSuccess,
 }) => {
-  const { addManager, login, users } = useApp();
+  const { addRegisteredUserToState, login, users } = useApp();
+  const nextMgrNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/MGR(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`MGR00${users.filter((u) => u.role === 'manager').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`MGR${String(Math.max(nextMgrNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('Engineering');
@@ -29,9 +34,9 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
   if (!isOpen) return null;
 
   const handleAutofill = () => {
-    const n = users.filter((u) => u.role === 'manager').length + 1;
+    const n = nextMgrNum;
     setName('Vikram Rathore');
-    setEmployeeId(`MGR00${n}`);
+    setEmployeeId(`MGR${String(Math.max(n, 1)).padStart(3, '0')}`);
     setEmail(`manager.demo${n}@company.com`);
     setPhone('+91 98402 33445');
     setDepartment('Engineering');
@@ -62,14 +67,7 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
       });
 
       const newMgr = res.user;
-      addManager({
-        name: newMgr.name,
-        employeeId: newMgr.employeeId,
-        email: newMgr.email,
-        phone: newMgr.phone,
-        department: newMgr.department,
-        title: newMgr.title,
-      });
+      addRegisteredUserToState(newMgr);
 
       if (autoLogin) {
         login(newMgr.email, undefined, newMgr);

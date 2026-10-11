@@ -201,10 +201,24 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             ]
         })
         if existing_emp:
-            raise HTTPException(
-                status_code=400,
-                detail=f"An employee with ID '{payload.employeeId}' or email '{payload.email}' already exists.",
-            )
+            # Idempotent sync: update fields and return existing record without 400 error
+            update_fields = {
+                "name": payload.name.strip(),
+                "phone": payload.phone or existing_emp.get("phone", "+91 "),
+                "department": payload.department or existing_emp.get("department", "Engineering"),
+                "managerName": payload.managerName or existing_emp.get("managerName", ""),
+            }
+            if payload.avatarUrl:
+                update_fields["avatarUrl"] = payload.avatarUrl
+            if payload.faceRegistered is not None:
+                update_fields["faceRegistered"] = payload.faceRegistered
+            if payload.faceVector:
+                update_fields["faceVector"] = payload.faceVector
+
+            users_collection.update_one({"_id": existing_emp["_id"]}, {"$set": update_fields})
+            updated_emp = users_collection.find_one({"_id": existing_emp["_id"]})
+            logger.info(f"[Admin] Employee '{payload.employeeId}' synced successfully in MongoDB.")
+            return _clean_doc(updated_emp or existing_emp)
 
         new_id = f"user-emp-{int(datetime.now().timestamp() * 1000) % 1000000}"
         from backend.services.auth_service import hash_password
@@ -317,10 +331,18 @@ async def create_manager(payload: AddManagerAdminRequest):
             ]
         })
         if existing_mgr:
-            raise HTTPException(
-                status_code=400,
-                detail=f"A user with ID '{payload.employeeId}' or email '{payload.email}' already exists.",
-            )
+            update_fields = {
+                "name": payload.name.strip(),
+                "phone": payload.phone or existing_mgr.get("phone", "+91 "),
+                "department": payload.department or existing_mgr.get("department", "Engineering"),
+                "title": payload.title or existing_mgr.get("title", "Department Operations Director"),
+            }
+            if payload.avatarUrl:
+                update_fields["avatarUrl"] = payload.avatarUrl
+            users_collection.update_one({"_id": existing_mgr["_id"]}, {"$set": update_fields})
+            updated_mgr = users_collection.find_one({"_id": existing_mgr["_id"]})
+            logger.info(f"[Admin] Manager '{payload.employeeId}' synced successfully in MongoDB.")
+            return _clean_doc(updated_mgr or existing_mgr)
 
         new_id = f"user-mgr-{int(datetime.now().timestamp() * 1000) % 1000000}"
         from backend.services.auth_service import hash_password

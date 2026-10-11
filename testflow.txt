@@ -309,17 +309,17 @@ Action:
   4. Observe Camera Stream:
      - Webcam activates and live preview renders in video frame.
      - If webcam is unavailable, toggle "Virtual Camera Simulation".
-  5. Complete Liveness Challenge:
-     - UI guides through 3 stages:
-       * Stage 1: "Stand directly in front of the camera" -> Face detected.
-       * Stage 2: "Blink your eyes" -> Blink verified.
-       * Stage 3: "Turn head slightly" -> Head motion verified.
-  6. Submit Check-In:
-     - Click "Confirm & Mark Attendance".
-     - System extracts face embeddings, performs match, and checks arrival time.
+  5. Automatic Person Availability Catch:
+     - Stand in front of the camera.
+     - The optical sensor automatically detects face availability within the frame.
+     - Green targeting brackets lock onto the face: "TARGET LOCKED · [Name]".
+     - No manual prompts ("Look straight", "Blink", or "Turn head") required.
+  6. Instant Auto-Mark as Present:
+     - The system automatically matches the 128-D biometric signature and checks GPS.
+     - Submits attendance automatically without needing to click any buttons.
   7. Verification:
-     - Green success banner appears: "Check-in Marked Successfully at [HH:MM AM]".
-     - Status shows "Present" (or "Late" if checked in after 9:15 AM).
+     - Celebratory banner displays: "Marked as Present ✓ Auto-Logged at [HH:MM AM]".
+     - Status updates in real-time to "Present" (or "Late" if after 9:15 AM).
 
 --------------------------------------------------------------------------------
 5.5 TEST STEP 5: FLEXIBLE SMART HOURS CALCULATION
@@ -541,6 +541,16 @@ Issue 4: "MongoDB Connection Timeout"
   - Ensure your IP address is whitelisted in MongoDB Atlas Network Access.
   - The application automatically falls back to in-memory `mongomock` if Atlas is
     unreachable, allowing tests to run offline.
+
+Issue 5: "409 Conflict / 400 Bad Request on Registration"
+  Solution:
+  - If an account with the specified email or employee ID already exists in Atlas,
+    the registration handler now seamlessly updates and syncs their profile/biometrics
+    (returning 201 Created) rather than raising an unhandled conflict.
+  - New employee/manager IDs are automatically generated using the highest existing numeric
+    ID (e.g., EMP045 when EMP044 exists) to eliminate ID collisions.
+  - State registration uses `addRegisteredUserToState` to update memory without making
+    duplicate REST requests to `/api/admin/employees`.
 
 ================================================================================
                          END OF TESTFLOW SPECIFICATION

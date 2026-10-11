@@ -11,13 +11,22 @@ interface AdminManagersProps {
 export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManager }) => {
   const { users, addManager, refreshUsers } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
+  const nextMgrNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/MGR(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`MGR00${users.filter((u) => u.role === 'manager').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`MGR${String(Math.max(nextMgrNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');
   const [title, setTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setEmployeeId(`MGR${String(Math.max(nextMgrNum, 1)).padStart(3, '0')}`);
+  }, [nextMgrNum, showAddModal]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

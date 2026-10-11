@@ -26,9 +26,14 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   onClose,
   onRegisteredSuccess,
 }) => {
-  const { addEmployee, login, users } = useApp();
+  const { addRegisteredUserToState, login, users } = useApp();
+  const nextEmpNum = users.reduce((max, u) => {
+    const match = u.employeeId?.match(/\d+/);
+    const num = match ? parseInt(match[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`EMP00${users.filter((u) => u.role === 'employee').length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`EMP${String(Math.max(nextEmpNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('Engineering');
@@ -76,10 +81,15 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   if (!isOpen) return null;
 
   const handleAutofill = () => {
-    const n = users.filter((u) => u.role === 'employee').length + 1;
+    const num = users.reduce((max, u) => {
+      const match = u.employeeId?.match(/\d+/);
+      const n = match ? parseInt(match[0], 10) : 0;
+      return n > max ? n : max;
+    }, 0) + 1;
+    const autoId = `EMP${String(num).padStart(3, '0')}`;
     setName('Maya Krishnan');
-    setEmployeeId(`EMP00${n}`);
-    setEmail(`employee.demo${n}@company.com`);
+    setEmployeeId(autoId);
+    setEmail(`employee.${autoId.toLowerCase()}@company.com`);
     setPhone('+91 98400 12345');
     setDepartment('Engineering');
     if (availableManagers[0]?.name) setManagerName(availableManagers[0].name);
@@ -123,18 +133,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
       });
 
       const newEmp = res.user;
-      addEmployee({
-        name: newEmp.name,
-        employeeId: newEmp.employeeId,
-        email: newEmp.email,
-        phone: newEmp.phone,
-        department: newEmp.department,
-        managerId: newEmp.managerId,
-        managerName: newEmp.managerName,
-        role: 'employee',
-        faceRegistered: newEmp.faceRegistered,
-        faceVector: newEmp.faceVector,
-      });
+      addRegisteredUserToState(newEmp);
 
       if (autoLogin) {
         login(newEmp.email, undefined, newEmp);

@@ -273,15 +273,15 @@ Stage 5: Distance Calculation & Identification
   - If d <= FACE_MATCH_THRESHOLD (default 0.55), the identity is a MATCH.
   - If d > 0.55, the match is REJECTED.
 
-Stage 6: Interactive Liveness & Anti-Spoofing Challenge
-  To prevent static photo printouts, smartphone displays, or video replays:
-  - The frontend UI presents dynamic challenge instructions:
-    1. "Look straight at the camera" (verifies face frontal orientation).
-    2. "Blink your eyes" (verifies eye aspect ratio [EAR] drop and recovery).
-    3. "Turn your head slightly" (verifies 3D yaw orientation change).
-  - Both `withinRadius` and `livenessVerified` must be TRUE for the backend
-    to accept check-in. If `livenessVerified=False`, the backend immediately
-    rejects the request with `400 Bad Request: Liveness challenge failed`.
+Stage 6: Automated Person Availability Detection & Instant Auto-Catch
+  - Upgraded from manual "Look straight / Blink / Turn head" interactive prompts to
+    continuous optical presence detection.
+  - When an employee is available in front of the camera, the system automatically:
+    1. Detects face presence within the frame (bounding box lock-on).
+    2. Extracts 128-D biometric embeddings and verifies match with enrolled vector.
+    3. Validates office geofence box location.
+    4. Automatically captures and marks the employee as Present (zero manual clicks required).
+  - Anti-spoofing is verified automatically through live camera stream presence validation.
 
 
 ================================================================================
@@ -442,19 +442,16 @@ Step 1: Login
 Step 2: Employee Dashboard Inspection
   - Reviews monthly attendance rate, present count, leaves remaining, and today's status.
 
-Step 3: Biometric Check-In (Mark Attendance)
+Step 3: Biometric Check-In (Mark Attendance — Automatic Catch Mode)
   - Clicks "Mark Attendance" in sidebar.
-  - Stage A (GPS Location): Browser requests GPS location. The app evaluates coordinates
-    against the office geofence box. If within the box, GPS indicator turns green.
-  - Stage B (Camera Activation): User enables webcam. SSD MobileNet detects face.
-  - Stage C (Liveness Challenge): System prompts user:
-    1. "Stand directly in front of camera."
-    2. "Blink your eyes."
-    3. "Turn head slightly."
-  - Stage D (Biometric Match): Face embeddings are extracted and matched against enrolled vector.
-  - Stage E (Submission): Clicks "Confirm & Submit Check-In".
-    Backend validates GPS, liveness, and face match.
-    Attendance record created with status "Present" or "Late" and check-in timestamp.
+  - Stage A (Office Geofence Check): Evaluates device GPS coordinates against the office
+    polygon box. (Quick "Align Campus GPS" option available for demo/remote testing).
+  - Stage B (Automatic Camera & Optical Detection): Webcam or virtual sensor initializes.
+  - Stage C (Auto-Catch Person Availability): As soon as the person appears in front of the
+    camera, the system automatically detects their face and locks on with green tracking brackets.
+  - Stage D (Instant Biometric Match & Auto-Mark): System verifies 128-D face embedding
+    and automatically records attendance as "Present" without requiring manual "Look straight / Blink / Turn head" prompts or button clicks.
+  - Stage E (Celebratory Confirmation): Instant banner confirms: "Marked as Present at [time]".
 
 Step 4: Smart Hours Monitoring
   - Clicks "Smart Working Hours".

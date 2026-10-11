@@ -22,8 +22,13 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
   const { addEmployee, users } = useApp();
 
   const availableManagers = users.filter((u) => u.role === 'manager');
+  const nextEmpNum = users.reduce((max, u) => {
+    const m = u.employeeId?.match(/EMP(\d+)/i) || u.employeeId?.match(/\d+/);
+    const num = m ? parseInt(m[1] || m[0], 10) : 0;
+    return num > max ? num : max;
+  }, 0) + 1;
   const [name, setName] = useState('');
-  const [employeeId, setEmployeeId] = useState(`EMP00${users.length + 1}`);
+  const [employeeId, setEmployeeId] = useState(`EMP${String(Math.max(nextEmpNum, 1)).padStart(3, '0')}`);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');
