@@ -25,7 +25,7 @@ interface AdminEmployeesProps {
 }
 
 export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmployee }) => {
-  const { users, deleteEmployee } = useApp();
+  const { users, deleteEmployee, refreshUsers } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [deptFilter, setDeptFilter] = useState('All');
   const [managerFilter, setManagerFilter] = useState('All');
@@ -40,11 +40,10 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
     return () => clearTimeout(timer);
   }, [deptFilter, managerFilter]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    await refreshUsers();
+    setIsLoading(false);
   };
 
   const employeeList = users.filter((u) => u.role === 'employee');
@@ -61,9 +60,9 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
 
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (employeeToDelete) {
-      deleteEmployee(employeeToDelete.id);
+      await deleteEmployee(employeeToDelete.id);
       setEmployeeToDelete(null);
     }
   };

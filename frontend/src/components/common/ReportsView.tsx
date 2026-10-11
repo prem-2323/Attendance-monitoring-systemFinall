@@ -15,9 +15,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Skeleton, SkeletonTable } from './Skeleton';
+import { reportsApi, ReportAggregates } from '../../services/reportsApi';
+import { AttendanceRecord } from '../../types';
 
 export const ReportsView: React.FC = () => {
-  const { allAttendance, users, officeLocation } = useApp();
+  const { allAttendance, users, officeLocation, refreshAttendance, refreshUsers } = useApp();
 
   const [department, setDepartment] = useState('All');
   const [employeeFilter, setEmployeeFilter] = useState('All');
@@ -27,50 +29,91 @@ export const ReportsView: React.FC = () => {
   const [reportGenerated, setReportGenerated] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const [aggregates, setAggregates] = useState<ReportAggregates>({
+    totalEmployees: 0,
+    presentCount: 0,
+    lateCount: 0,
+    absentCount: 0,
+    leaveCount: 0,
+    totalRecords: 0,
+    avgAttendance: 100.0,
+  });
+  const [reportRecords, setReportRecords] = useState<AttendanceRecord[]>([]);
 
-  const handleRefresh = () => {
+  const loadReportData = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await reportsApi.getAnalytics({
+        department,
+        employeeId: employeeFilter,
+        fromDate,
+        toDate,
+        status: statusFilter,
+      });
+      if (res?.success) {
+        setAggregates(res.aggregates);
+        setReportRecords(res.records || []);
+        setReportGenerated(true);
+      }
+    } catch (err) {
+      console.warn('[ReportsView] Error loading reports from Atlas:', err);
+      // Fallback dynamic calculation from context
+      const filtered = allAttendance.filter((rec) => {
+        const matchesDept = department === 'All' || rec.department === department;
+        const matchesEmp = employeeFilter === 'All' || rec.employeeId === employeeFilter;
+        const matchesStatus = statusFilter === 'All' || rec.status === statusFilter;
+        const matchesFrom = !fromDate || rec.date >= fromDate;
+        const matchesTo = !toDate || rec.date <= toDate;
+        return matchesDept && matchesEmp && matchesStatus && matchesFrom && matchesTo;
+      });
+      setReportRecords(filtered);
+      let pCount = 0;
+      let lCount = 0;
+      let aCount = 0;
+      let lvCount = 0;
+      filtered.forEach((r) => {
+        if (r.status === 'Present' || r.status === 'Working') pCount++;
+        else if (r.status === 'Late') lCount++;
+        else if (r.status === 'Absent') aCount++;
+        else if (r.status === 'On Leave') lvCount++;
+      });
+      const totRecs = filtered.length;
+      const deptUsers = users.filter(
+        (u) => u.role === 'employee' && (department === 'All' || u.department === department)
+      );
+      setAggregates({
+        totalEmployees: deptUsers.length || 1,
+        presentCount: pCount,
+        lateCount: lCount,
+        absentCount: aCount,
+        leaveCount: lvCount,
+        totalRecords: totRecs,
+        avgAttendance:
+          totRecs > 0 ? Math.round(((pCount + lCount) / totRecs) * 1000) / 10 : 100.0,
+      });
+      setReportGenerated(true);
+    } finally {
       setIsLoading(false);
-    }, 450);
+    }
   };
 
-  // Filter attendance records
-  const filteredRecords = allAttendance.filter((rec) => {
-    const matchesDept = department === 'All' || rec.department === department;
-    const matchesEmp = employeeFilter === 'All' || rec.employeeId === employeeFilter;
-    const matchesStatus = statusFilter === 'All' || rec.status === statusFilter;
-    const matchesFrom = !fromDate || rec.date >= fromDate;
-    const matchesTo = !toDate || rec.date <= toDate;
-    return matchesDept && matchesEmp && matchesStatus && matchesFrom && matchesTo;
-  });
+  useEffect(() => {
+    loadReportData();
+  }, []);
 
-  // Calculate Report Aggregates matching Section 12
-  const totalEmployeesReport = 120;
-  const presentCount = 98;
-  const absentCount = 15;
-  const leaveCount = 7;
-  const lateCount = 12;
-  const avgAttendance = 92.4;
+  const handleRefresh = async () => {
+    await Promise.all([refreshAttendance(), refreshUsers()]);
+    await loadReportData();
+  };
 
   const handleGenerateReport = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setReportGenerated(true);
-    }, 400);
+    loadReportData();
   };
 
   const exportExcelCSV = () => {
     const headers = ['Record ID', 'Date', 'Employee ID', 'Name', 'Department', 'Check-In', 'Check-Out', 'Hours', 'Status', 'Verification'];
-    const rows = filteredRecords.map((r) => [
+    const rows = reportRecords.map((r) => [
       r.id,
       r.date,
       r.employeeId,
@@ -245,14 +288,14 @@ export const ReportsView: React.FC = () => {
           </div>
         ) : (
         <div className="space-y-6">
-          {/* KPI Cards matching Section 12 */}
+          {/* KPI Cards dynamically computed from MongoDB Atlas */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 saas-card-shadow">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                 Total Employees
               </span>
               <span className="text-2xl font-bold text-slate-900 mt-2 block">
-                {totalEmployeesReport}
+                {aggregates.totalEmployees}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">Headcount</span>
             </div>
@@ -262,9 +305,9 @@ export const ReportsView: React.FC = () => {
                 Average Attendance
               </span>
               <span className="text-2xl font-bold text-emerald-600 mt-2 block">
-                {avgAttendance}%
+                {aggregates.avgAttendance}%
               </span>
-              <span className="text-[11px] text-emerald-700 mt-1 block">High compliance</span>
+              <span className="text-[11px] text-emerald-700 mt-1 block">Live compliance</span>
             </div>
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 saas-card-shadow">
@@ -272,7 +315,7 @@ export const ReportsView: React.FC = () => {
                 Present
               </span>
               <span className="text-2xl font-bold text-emerald-700 mt-2 block">
-                {presentCount}
+                {aggregates.presentCount}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">Verified on site</span>
             </div>
@@ -282,7 +325,7 @@ export const ReportsView: React.FC = () => {
                 Absent
               </span>
               <span className="text-2xl font-bold text-rose-600 mt-2 block">
-                {absentCount}
+                {aggregates.absentCount}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">Unexcused</span>
             </div>
@@ -292,7 +335,7 @@ export const ReportsView: React.FC = () => {
                 Leave
               </span>
               <span className="text-2xl font-bold text-blue-600 mt-2 block">
-                {leaveCount}
+                {aggregates.leaveCount}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">Approved</span>
             </div>
@@ -302,7 +345,7 @@ export const ReportsView: React.FC = () => {
                 Late
               </span>
               <span className="text-2xl font-bold text-amber-600 mt-2 block">
-                {lateCount}
+                {aggregates.lateCount}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">Flex adjusted</span>
             </div>
@@ -313,9 +356,9 @@ export const ReportsView: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Attendance Register Records</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Filtered period: {fromDate} to {toDate} · Facility: {officeLocation.name}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Filtered period: {fromDate || 'All'} to {toDate || 'All'} · Facility: {officeLocation.name}</p>
               </div>
-              <span className="text-xs text-slate-400 mt-1 sm:mt-0">Showing {filteredRecords.length} records</span>
+              <span className="text-xs text-slate-400 mt-1 sm:mt-0">Showing {reportRecords.length} records</span>
             </div>
 
             <div className="overflow-x-auto">
@@ -332,34 +375,43 @@ export const ReportsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRecords.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-900">{r.date}</td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">{r.employeeName}</div>
-                        <div className="text-[11px] text-slate-400 font-normal">{r.employeeId} · {r.department}</div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-700">{r.checkIn || '—'}</td>
-                      <td className="px-6 py-4 text-slate-700">{r.checkOut || '—'}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{r.hoursWorked || '—'}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-800">
-                          {r.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
-                          <Check className="h-3 w-3 text-emerald-600" />
-                          <span>{r.withinRadius ? 'Face + Office GPS ✓' : 'Manual / Leave'}</span>
-                        </span>
+                  {reportRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+                        No attendance records found in MongoDB Atlas matching the specified parameters.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    reportRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-slate-900">{r.date}</td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900">{r.employeeName}</div>
+                          <div className="text-[11px] text-slate-400 font-normal">{r.employeeId} · {r.department}</div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-700">{r.checkIn || '—'}</td>
+                        <td className="px-6 py-4 text-slate-700">{r.checkOut || '—'}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-900">{r.hoursWorked || '—'}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-800">
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+                            <Check className="h-3 w-3 text-emerald-600" />
+                            <span>{r.withinRadius ? 'Face + Office GPS ✓' : 'Manual / Leave'}</span>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
+
         )
       )}
     </div>

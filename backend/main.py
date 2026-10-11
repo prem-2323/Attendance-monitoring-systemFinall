@@ -12,6 +12,11 @@ import os
 from backend.config import API_TITLE, API_DESCRIPTION, API_VERSION
 from backend.routes import employee as employee_router
 from backend.routes import attendance as attendance_router
+from backend.routes import auth as auth_router
+from backend.routes import admin as admin_router
+from backend.routes import employee_portal as employee_portal_router
+from backend.routes import manager as manager_router
+from backend.routes import reports as reports_router
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -39,19 +44,37 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(auth_router.router, prefix="/api/auth")
+app.include_router(auth_router.router, prefix="/auth")
+app.include_router(admin_router.router, prefix="/api/admin")
+app.include_router(admin_router.router, prefix="/admin")
+app.include_router(employee_portal_router.router, prefix="/api/employee")
+app.include_router(employee_portal_router.router, prefix="/employee-portal")
+app.include_router(manager_router.router, prefix="/api/manager")
+app.include_router(manager_router.router, prefix="/manager")
+app.include_router(reports_router.router, prefix="/api/reports")
+app.include_router(reports_router.router, prefix="/reports")
 app.include_router(employee_router.router)
 app.include_router(attendance_router.router)
 
 # ── Serve frontend static files ───────────────────────────────────────────────
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+css_dir = os.path.join(FRONTEND_DIR, "css")
+js_dir = os.path.join(FRONTEND_DIR, "js")
+dist_dir = os.path.join(FRONTEND_DIR, "dist")
 
-if os.path.isdir(FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
-    app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
+if os.path.isdir(css_dir):
+    app.mount("/static", StaticFiles(directory=css_dir), name="css")
+if os.path.isdir(js_dir):
+    app.mount("/js", StaticFiles(directory=js_dir), name="js")
+if os.path.isdir(dist_dir):
+    app.mount("/dist", StaticFiles(directory=dist_dir), name="dist")
 
+index_file = os.path.join(FRONTEND_DIR, "index.html")
+if os.path.isfile(index_file):
     @app.get("/", include_in_schema=False)
     async def serve_index():
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        return FileResponse(index_file)
 
     @app.get("/{page}.html", include_in_schema=False)
     async def serve_page(page: str):

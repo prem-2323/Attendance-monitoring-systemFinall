@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { authApi } from '../../services/authApi';
 
 interface RegisterEmployeeModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const [useVirtualCam, setUseVirtualCam] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Camera video ref
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -79,7 +81,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
     }, 1200);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -88,35 +90,49 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
       return;
     }
 
-    // Check if email already registered
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('This corporate email is already registered in the system.');
-      return;
-    }
-
     const assignedMgr = availableManagers.find((m) => m.name === managerName);
 
-    const newEmp = addEmployee({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      managerId: assignedMgr?.id,
-      managerName: managerName,
-      role: 'employee',
-      faceRegistered: faceCaptured,
-      faceVector: faceCaptured ? 'VEC-128-ENROLLED-PASSIVE' : undefined,
-    });
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerEmployee({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        managerId: assignedMgr?.id,
+        managerName: managerName,
+        password: password.trim() || 'password123',
+        faceRegistered: faceCaptured,
+        faceVector: faceCaptured ? 'VEC-128-ENROLLED-PASSIVE' : undefined,
+      });
 
-    if (autoLogin) {
-      login(newEmp.email);
-    } else if (onRegisteredSuccess) {
-      onRegisteredSuccess(newEmp.email);
+      const newEmp = res.user;
+      addEmployee({
+        name: newEmp.name,
+        employeeId: newEmp.employeeId,
+        email: newEmp.email,
+        phone: newEmp.phone,
+        department: newEmp.department,
+        managerId: newEmp.managerId,
+        managerName: newEmp.managerName,
+        role: 'employee',
+        faceRegistered: newEmp.faceRegistered,
+        faceVector: newEmp.faceVector,
+      });
+
+      if (autoLogin) {
+        login(newEmp.email, undefined, newEmp);
+      } else if (onRegisteredSuccess) {
+        onRegisteredSuccess(newEmp.email);
+      }
+
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register employee in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   return (
@@ -372,10 +388,20 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors"
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
             >
-              <UserPlus className="h-4 w-4" />
-              <span>Register Employee</span>
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Saving to Atlas...</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" />
+                  <span>Register Employee</span>
+                </>
+              )}
             </button>
           </div>
         </form>

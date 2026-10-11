@@ -99,7 +99,7 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
     setFaceRegistered(false);
   };
 
-  const handleCreateEmployee = (e: React.FormEvent) => {
+  const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!name.trim() || !employeeId.trim() || !email.trim()) {
@@ -107,20 +107,24 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
       return;
     }
 
-    addEmployee({
-      name,
-      employeeId,
-      email,
-      phone,
-      department,
-      managerName,
-      role,
-      avatarUrl: capturedPhotoUrl || undefined,
-      faceRegistered: faceRegistered,
-      faceVector: faceRegistered ? `face_vec_${Date.now()}_128d` : undefined,
-    });
+    try {
+      await addEmployee({
+        name,
+        employeeId,
+        email,
+        phone,
+        department,
+        managerName,
+        role,
+        avatarUrl: capturedPhotoUrl || undefined,
+        faceRegistered: faceRegistered,
+        faceVector: faceRegistered ? `face_vec_${Date.now()}_128d` : undefined,
+      });
 
-    onSuccess();
+      onSuccess();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register employee');
+    }
   };
 
   return (

@@ -22,15 +22,14 @@ export const AdminSettings: React.FC = () => {
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const handleConfirmReset = () => {
-    resetAllData();
+  const handleConfirmReset = async () => {
+    await resetAllData();
     setShowResetConfirm(false);
-    window.location.reload();
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateOfficeLocation({
+    await updateOfficeLocation({
       name,
       address,
       lat: Number(lat),

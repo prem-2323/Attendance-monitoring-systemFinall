@@ -32,7 +32,15 @@ interface AdminAttendanceProps {
 }
 
 export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 'today' }) => {
-  const { todayAttendance, historicalAttendance, allAttendance, users, officeLocation } = useApp();
+  const {
+    todayAttendance,
+    historicalAttendance,
+    allAttendance,
+    users,
+    officeLocation,
+    overrideAttendanceRecord,
+    refreshAttendance,
+  } = useApp();
 
   const [viewMode, setViewMode] = useState<'today' | 'history'>(initialMode);
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -61,11 +69,10 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     return () => clearTimeout(timer);
   }, [viewMode, datePreset, statusFilter, deptFilter]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    await refreshAttendance();
+    setIsLoading(false);
   };
 
   // Pick dataset based on view mode
@@ -147,10 +154,22 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     document.body.removeChild(link);
   };
 
-  const handleApplyOverride = (e: React.FormEvent) => {
+  const handleApplyOverride = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatusFeedback(`Attendance override successfully logged for ${overrideEmpId} on ${overrideDate} as ${overrideStatus}.`);
-    setShowOverrideModal(false);
+    setIsLoading(true);
+    const res = await overrideAttendanceRecord({
+      employeeId: overrideEmpId,
+      date: overrideDate,
+      status: overrideStatus,
+      reason: overrideReason,
+    });
+    setIsLoading(false);
+    if (res.success) {
+      setStatusFeedback(res.message);
+      setShowOverrideModal(false);
+    } else {
+      setStatusFeedback(`Override error: ${res.message}`);
+    }
   };
 
   return (

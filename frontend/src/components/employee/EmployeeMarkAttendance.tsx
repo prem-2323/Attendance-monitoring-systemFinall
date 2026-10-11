@@ -173,24 +173,33 @@ export const EmployeeMarkAttendance: React.FC = () => {
   };
 
   // Perform Check In or Check Out
-  const handleExecuteAttendance = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleExecuteAttendance = async () => {
     if (!currentUser) return;
     setErrorMessage('');
+    setIsSubmitting(true);
 
-    const result = markAttendance({
-      employeeId: currentUser.employeeId,
-      isCheckOut: isCheckOutMode,
-      distanceMeters: calculatedDistance,
-      withinRadius: withinOfficeRadius,
-      livenessVerified: livenessStatus === 'verified',
-    });
+    try {
+      const result = await markAttendance({
+        employeeId: currentUser.employeeId,
+        isCheckOut: isCheckOutMode,
+        distanceMeters: calculatedDistance,
+        withinRadius: withinOfficeRadius,
+        livenessVerified: livenessStatus === 'verified',
+      });
 
-    if (result.success) {
-      setVerificationStage('marked');
-      const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setMarkedTimestamp(timeNow);
-    } else {
-      setErrorMessage(result.message);
+      if (result.success) {
+        setVerificationStage('marked');
+        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setMarkedTimestamp(timeNow);
+      } else {
+        setErrorMessage(result.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to record attendance');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -550,11 +559,12 @@ export const EmployeeMarkAttendance: React.FC = () => {
               </div>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={handleExecuteAttendance}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>{isCheckOutMode ? 'Confirm Check Out' : 'Confirm Check In'}</span>
+                <CheckCircle2 className={`h-4 w-4 ${isSubmitting ? 'animate-spin' : ''}`} />
+                <span>{isSubmitting ? 'Saving to MongoDB Atlas...' : (isCheckOutMode ? 'Confirm Check Out' : 'Confirm Check In')}</span>
               </button>
             </div>
           )}

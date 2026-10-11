@@ -1,0 +1,1022 @@
+{
+  "info": {
+    "_postman_id": "a9d8f7e6-1234-4567-89ab-cdef01234567",
+    "name": "Attendance Monitoring System - Auth & MongoDB Atlas API",
+    "description": "Complete Postman collection for testing all authentication, registration, login, and forgot password endpoints connected to MongoDB Atlas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "resetOtp",
+      "value": "8421",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System Health",
+      "item": [
+        {
+          "name": "Health Check & Database Ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Verifies that FastAPI is running and MongoDB Atlas is connected."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Login (LoginView.tsx)",
+      "item": [
+        {
+          "name": "Login - Admin (Rajesh Sharma)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"admin@company.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Logs in the Admin user directly from MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Employee by ID (John Doe EMP001)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"EMP001\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Logs in an Employee using Employee ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Manager (Kumar Verma)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"kumar.verma@company.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Logs in the Engineering Manager user."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Invalid Credentials (Error Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"unknown.user@company.com\",\n  \"password\": \"wrongpass\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Expects 401 Unauthorized from backend."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Register Admin (RegisterAdminModal.tsx)",
+      "item": [
+        {
+          "name": "Register New Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Suresh Natarajan\",\n  \"employeeId\": \"ADM005\",\n  \"email\": \"suresh.admin@company.com\",\n  \"phone\": \"+91 98401 55555\",\n  \"department\": \"System Administration\",\n  \"password\": \"adminSecure2026!\",\n  \"securityPasskey\": \"AMS-ROOT-2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register/admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register", "admin"]
+            },
+            "description": "Registers an Administrator. Requires securityPasskey AMS-ROOT-2026. Stores record in MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Admin - Invalid Passkey (Error Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hacker Admin\",\n  \"employeeId\": \"ADM999\",\n  \"email\": \"hacker@company.com\",\n  \"securityPasskey\": \"INVALID-KEY\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register/admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register", "admin"]
+            },
+            "description": "Expects 403 Forbidden because passkey is invalid."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Register Manager (RegisterManagerModal.tsx)",
+      "item": [
+        {
+          "name": "Register New Manager",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vikram Rathore\",\n  \"employeeId\": \"MGR005\",\n  \"email\": \"vikram.rathore@company.com\",\n  \"phone\": \"+91 98402 33445\",\n  \"department\": \"Engineering\",\n  \"title\": \"Engineering Lead\",\n  \"password\": \"mgrPassword2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register/manager",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register", "manager"]
+            },
+            "description": "Registers a Department Manager in MongoDB Atlas."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Register Employee (RegisterEmployeeModal.tsx)",
+      "item": [
+        {
+          "name": "Register New Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maya Krishnan\",\n  \"employeeId\": \"EMP005\",\n  \"email\": \"maya.k@company.com\",\n  \"phone\": \"+91 98403 66778\",\n  \"department\": \"Engineering\",\n  \"managerName\": \"Kumar Verma\",\n  \"password\": \"empPassword2026!\",\n  \"faceRegistered\": true,\n  \"faceVector\": \"VEC-128-ENROLLED-PASSIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register/employee",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register", "employee"]
+            },
+            "description": "Registers an Employee with biometric facial enrollment into MongoDB Atlas."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Forgot Password Flow (ForgotPasswordModal.tsx)",
+      "item": [
+        {
+          "name": "Step 1: Request OTP Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.code) {",
+                  "    pm.collectionVariables.set('resetOtp', json.code);",
+                  "    console.log('Saved OTP to variable: ' + json.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"john.doe@company.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forgot-password/request",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "forgot-password", "request"]
+            },
+            "description": "Step 1: Generates OTP token and saves it in MongoDB Atlas reset_tokens collection. Saves token to collection variable {{resetOtp}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 2: Verify OTP Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"john.doe@company.com\",\n  \"code\": \"{{resetOtp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forgot-password/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "forgot-password", "verify"]
+            },
+            "description": "Step 2: Verifies submitted OTP against MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 3: Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"john.doe@company.com\",\n  \"code\": \"{{resetOtp}}\",\n  \"newPassword\": \"myNewSecurePassword2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forgot-password/reset",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "forgot-password", "reset"]
+            },
+            "description": "Step 3: Updates hashed password in MongoDB Atlas and burns the token."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Login With New Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"john.doe@company.com\",\n  \"password\": \"myNewSecurePassword2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Verifies that the user can log in with their newly updated password."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Directory & Rosters (RegisterModal.tsx)",
+      "item": [
+        {
+          "name": "Get All Users from MongoDB Atlas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "users"]
+            },
+            "description": "Retrieves all user documents stored in MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Managers from MongoDB Atlas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/managers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "managers"]
+            },
+            "description": "Returns list of managers for reporting dropdown selection."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Single User by ID or Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/user/EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "user", "EMP001"]
+            },
+            "description": "Fetches a specific user profile by ID or email."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Admin Management Portal",
+      "item": [
+        {
+          "name": "Admin Dashboard Real-time Stats & Stream",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/dashboard/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "dashboard", "stats"]
+            },
+            "description": "Calculates real-time headcount, attendance rates, department breakdown, and recent chronological activity logs."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Employees (AdminEmployees.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/employees",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "employees"]
+            },
+            "description": "Returns all employee roster records from MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Employee with Biometrics (AdminAddEmployee.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Karthik Raman\",\n  \"employeeId\": \"EMP099\",\n  \"email\": \"karthik.raman@company.com\",\n  \"phone\": \"+91 98840 12345\",\n  \"department\": \"Engineering\",\n  \"managerName\": \"Kumar Verma\",\n  \"role\": \"employee\",\n  \"faceRegistered\": true,\n  \"faceVector\": \"face_vec_karthik_128d\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/employees",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "employees"]
+            },
+            "description": "Enrolls new employee record and face biometric embedding into MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Employee by ID (AdminEmployees.tsx)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/employees/EMP099",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "employees", "EMP099"]
+            },
+            "description": "Deletes employee and associated today attendance from MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Managers (AdminManagers.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/managers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "managers"]
+            },
+            "description": "Returns all department heads and operations directors."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Manager (AdminAddManager.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Suresh Chandran\",\n  \"employeeId\": \"MGR099\",\n  \"email\": \"suresh.c@company.com\",\n  \"phone\": \"+91 98401 55667\",\n  \"department\": \"Engineering\",\n  \"title\": \"Cloud Operations VP\",\n  \"faceRegistered\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/managers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "managers"]
+            },
+            "description": "Provisions department head credentials and approval permissions."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Today Attendance (AdminAttendance.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/attendance?mode=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "attendance"],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "today"
+                }
+              ]
+            },
+            "description": "Fetches current day attendance roster with Face + GPS verification metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance History (AdminAttendance.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/attendance?mode=history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "attendance"],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "history"
+                }
+              ]
+            },
+            "description": "Queries historical attendance logs with status and date filters."
+          },
+          "response": []
+        },
+        {
+          "name": "Override Attendance Regularization (AdminAttendance.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"date\": \"2026-10-10\",\n  \"status\": \"Present\",\n  \"reason\": \"Client onsite deployment attendance regularized by Admin.\",\n  \"checkIn\": \"09:00 AM\",\n  \"checkOut\": \"06:00 PM\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/attendance/override",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "attendance", "override"]
+            },
+            "description": "Manually regularizes an attendance entry and appends an immutable entry to approval audit log."
+          },
+          "response": []
+        },
+        {
+          "name": "List Approval Audit Trail (AdminApprovalAudit.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/audits",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "audits"]
+            },
+            "description": "Retrieves managerial decision history, reasons, reviewer names, and timestamps."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Office Geofence & System Settings (AdminSettings.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "settings"]
+            },
+            "description": "Fetches current campus GPS coordinates, geofence radius limit, and smart working hours."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Office Geofence Settings (AdminSettings.tsx)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chennai Tech Park (HQ)\",\n  \"address\": \"Block B, OMR Cyber Corridor, Chennai, TN 600096\",\n  \"lat\": 12.9815,\n  \"lng\": 80.2180,\n  \"allowedRadiusMeters\": 160\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/settings/office",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "settings", "office"]
+            },
+            "description": "Saves updated office geofence threshold directly into MongoDB Atlas."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Employee Portal (Employee*.tsx)",
+      "item": [
+        {
+          "name": "Mark Attendance - Check-in (EmployeeMarkAttendance.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"isCheckOut\": false,\n  \"distanceMeters\": 38.0,\n  \"withinRadius\": true,\n  \"livenessVerified\": true,\n  \"locationName\": \"Chennai Tech Park (HQ)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/attendance/mark",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "attendance", "mark"]
+            },
+            "description": "Records Face + GPS biometric check-in directly into MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Attendance - Check-out (EmployeeMarkAttendance.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"isCheckOut\": true,\n  \"distanceMeters\": 42.0,\n  \"withinRadius\": true,\n  \"livenessVerified\": true,\n  \"locationName\": \"Chennai Tech Park (HQ)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/attendance/mark",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "attendance", "mark"]
+            },
+            "description": "Records biometric check-out and computes shift duration."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Attendance - Anti-Spoof Rejection Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"isCheckOut\": false,\n  \"distanceMeters\": 25.0,\n  \"withinRadius\": true,\n  \"livenessVerified\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/attendance/mark",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "attendance", "mark"]
+            },
+            "description": "Demonstrates automatic rejection when eye-blink liveness verification fails."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance History & Dynamic Stats (EmployeeAttendanceHistory.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/attendance/EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "attendance", "EMP001"]
+            },
+            "description": "Fetches attendance log and dynamic calculated monthly statistics from Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Apply for Leave (EmployeeApplyLeave.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"leaveType\": \"Casual Leave\",\n  \"fromDate\": \"2026-10-18\",\n  \"toDate\": \"2026-10-19\",\n  \"reason\": \"Family function in hometown, travelling on weekend.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/leave/apply",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "leave", "apply"]
+            },
+            "description": "Submits an electronic leave request and forwards it to manager in Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Leave Requests & Quotas (EmployeeLeaveStatus.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/leave/EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "leave", "EMP001"]
+            },
+            "description": "Retrieves employee leave applications and remaining annual quotas."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Employee Dashboard (EmployeeDashboard.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/dashboard/EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "dashboard", "EMP001"]
+            },
+            "description": "Provides unified employee dashboard summary from MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Smart Working Hours (EmployeeSmartHours.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/smart-hours/EMP001?checkIn=12:00 PM&currentTime=07:15 PM",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "employee", "smart-hours", "EMP001"],
+              "query": [
+                {
+                  "key": "checkIn",
+                  "value": "12:00 PM"
+                },
+                {
+                  "key": "currentTime",
+                  "value": "07:15 PM"
+                }
+              ]
+            },
+            "description": "Dynamic 8-hour shift calculation preventing unfair penalties for flexible arrivals."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Manager Portal (Manager*.tsx)",
+      "item": [
+        {
+          "name": "Manager Overview Dashboard (ManagerDashboard.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/dashboard/user-mgr-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "dashboard", "user-mgr-1"]
+            },
+            "description": "Returns supervising metrics: team counts (present, absent, on leave, late) and pending leave approvals."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Manager Team Directory (ManagerEmployees.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/employees/user-mgr-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "employees", "user-mgr-1"]
+            },
+            "description": "Fetches direct report employees under this manager with real calculated attendance rates from Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Team Leave Requests (ManagerLeaveApproval.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/leaves/user-mgr-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "leaves", "user-mgr-1"]
+            },
+            "description": "Fetches pending approvals and reviewed leave history for direct reports."
+          },
+          "response": []
+        },
+        {
+          "name": "Smart Leave Review - Approve (ManagerLeaveApproval.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"leave-1\",\n  \"decision\": \"Approved\",\n  \"managerId\": \"user-mgr-1\",\n  \"managerName\": \"Kumar Verma\",\n  \"remarks\": \"Verified punctuality records. Approved requested dates.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/leave/review",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "leave", "review"]
+            },
+            "description": "Persists leave approval into MongoDB Atlas, synchronizes approval audit log, and marks On Leave if today."
+          },
+          "response": []
+        },
+        {
+          "name": "Smart Leave Review - Reject (ManagerLeaveApproval.tsx)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"leave-1\",\n  \"decision\": \"Rejected\",\n  \"managerId\": \"user-mgr-1\",\n  \"managerName\": \"Kumar Verma\",\n  \"remarks\": \"Declined due to team critical sprint delivery window.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/leave/review",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "leave", "review"]
+            },
+            "description": "Declines leave application and logs immutable rejection rationale in approval audit collection."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Employee Attendance Analysis (ManagerLeaveApproval.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/manager/employee-history/EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "manager", "employee-history", "EMP001"]
+            },
+            "description": "Retrieves employee attendance history and rating for modal inspection before approving leave."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Common - Reports & Profile Management (ReportsView.tsx & UserProfileView.tsx)",
+      "item": [
+        {
+          "name": "Update User Profile (UserProfileView.tsx)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"phone\": \"+91 98840 99999\",\n  \"department\": \"Engineering\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "profile"]
+            },
+            "description": "Updates employee phone number and profile info, persisting changes to MongoDB Atlas users collection."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports Analytics - All Departments (ReportsView.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "analytics"]
+            },
+            "description": "Computes real-time attendance report metrics (total employees, present, absent, leave, late, and avg attendance rate) from MongoDB Atlas."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports Analytics - Department Filter (ReportsView.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics?department=Engineering",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "analytics"],
+              "query": [
+                {
+                  "key": "department",
+                  "value": "Engineering"
+                }
+              ]
+            },
+            "description": "Filters attendance register and KPIs by Department."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports Analytics - Date Range Filter (ReportsView.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics?fromDate=2026-10-01&toDate=2026-10-10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "analytics"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-10-01"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-10-10"
+                }
+              ]
+            },
+            "description": "Filters attendance register records by date range."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports Analytics - Status Filter (ReportsView.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics?status=Present",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "analytics"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Present"
+                }
+              ]
+            },
+            "description": "Filters report records by attendance status (Present, Late, Absent, On Leave)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports Analytics - Employee Specific Filter (ReportsView.tsx)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics?employeeId=EMP001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "analytics"],
+              "query": [
+                {
+                  "key": "employeeId",
+                  "value": "EMP001"
+                }
+              ]
+            },
+            "description": "Filters attendance register records for a specific employee."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+

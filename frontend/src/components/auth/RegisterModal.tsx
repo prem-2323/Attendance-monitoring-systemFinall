@@ -121,6 +121,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
 // Embedded forms with zero layout flicker:
 import { useApp } from '../../context/AppContext';
+import { authApi } from '../../services/authApi';
 import { Camera, Check, AlertCircle, KeyRound, Building, Video, VideoOff } from 'lucide-react';
 
 function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => void; onRegisteredSuccess?: (email: string) => void }) {
@@ -133,8 +134,9 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
   const [securityPasskey, setSecurityPasskey] = useState('AMS-ROOT-2026');
   const [autoLogin, setAutoLogin] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !employeeId.trim()) {
@@ -145,22 +147,34 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
       setErrorMsg('Invalid Administrator Passkey (default is AMS-ROOT-2026).');
       return;
     }
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('Email is already registered.');
-      return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerAdmin({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        securityPasskey: securityPasskey.trim(),
+      });
+      const newAdmin = res.user;
+      addAdmin({
+        name: newAdmin.name,
+        employeeId: newAdmin.employeeId,
+        email: newAdmin.email,
+        phone: newAdmin.phone,
+        department: newAdmin.department,
+        title: newAdmin.title || 'System Administrator',
+      });
+      if (autoLogin) login(newAdmin.email, undefined, newAdmin);
+      else if (onRegisteredSuccess) onRegisteredSuccess(newAdmin.email);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register admin in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
     }
-    const newAdmin = addAdmin({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      title: 'System Administrator',
-    });
-    if (autoLogin) login(newAdmin.email);
-    else if (onRegisteredSuccess) onRegisteredSuccess(newAdmin.email);
-    onClose();
   };
 
   return (
@@ -275,10 +289,20 @@ function EmbeddedAdminForm({ onClose, onRegisteredSuccess }: { onClose: () => vo
         </button>
         <button
           type="submit"
-          className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-xs cursor-pointer flex items-center gap-1.5"
+          disabled={isSubmitting}
+          className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
         >
-          <ShieldCheck className="h-4 w-4" />
-          <span>Register Admin</span>
+          {isSubmitting ? (
+            <>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="h-4 w-4" />
+              <span>Register Admin</span>
+            </>
+          )}
         </button>
       </div>
     </form>
@@ -295,30 +319,43 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
   const [title, setTitle] = useState('Engineering Lead');
   const [autoLogin, setAutoLogin] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !employeeId.trim()) {
       setErrorMsg('Please complete all required fields.');
       return;
     }
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('Email is already registered.');
-      return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerManager({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        title: title.trim(),
+      });
+      const newMgr = res.user;
+      addManager({
+        name: newMgr.name,
+        employeeId: newMgr.employeeId,
+        email: newMgr.email,
+        phone: newMgr.phone,
+        department: newMgr.department,
+        title: newMgr.title,
+      });
+      if (autoLogin) login(newMgr.email, undefined, newMgr);
+      else if (onRegisteredSuccess) onRegisteredSuccess(newMgr.email);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register manager in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
     }
-    const newMgr = addManager({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      title: title.trim(),
-    });
-    if (autoLogin) login(newMgr.email);
-    else if (onRegisteredSuccess) onRegisteredSuccess(newMgr.email);
-    onClose();
   };
 
   return (
@@ -438,10 +475,20 @@ function EmbeddedManagerForm({ onClose, onRegisteredSuccess }: { onClose: () => 
         </button>
         <button
           type="submit"
-          className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs cursor-pointer flex items-center gap-1.5"
+          disabled={isSubmitting}
+          className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
         >
-          <UserCheck className="h-4 w-4" />
-          <span>Register Manager</span>
+          {isSubmitting ? (
+            <>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <UserCheck className="h-4 w-4" />
+              <span>Register Manager</span>
+            </>
+          )}
         </button>
       </div>
     </form>
@@ -461,6 +508,7 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
   const [faceCaptured, setFaceCaptured] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCaptureFace = () => {
     setIsCapturing(true);
@@ -470,33 +518,52 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
     }, 1100);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !employeeId.trim()) {
       setErrorMsg('Please complete all required fields.');
       return;
     }
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('Email is already registered.');
-      return;
-    }
+
     const assignedMgr = availableManagers.find((m) => m.name === managerName);
-    const newEmp = addEmployee({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      managerId: assignedMgr?.id,
-      managerName: managerName,
-      role: 'employee',
-      faceRegistered: faceCaptured,
-    });
-    if (autoLogin) login(newEmp.email);
-    else if (onRegisteredSuccess) onRegisteredSuccess(newEmp.email);
-    onClose();
+
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerEmployee({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        managerId: assignedMgr?.id,
+        managerName: managerName,
+        faceRegistered: faceCaptured,
+        faceVector: faceCaptured ? 'VEC-128-ENROLLED-PASSIVE' : undefined,
+      });
+
+      const newEmp = res.user;
+      addEmployee({
+        name: newEmp.name,
+        employeeId: newEmp.employeeId,
+        email: newEmp.email,
+        phone: newEmp.phone,
+        department: newEmp.department,
+        managerId: newEmp.managerId,
+        managerName: newEmp.managerName,
+        role: 'employee',
+        faceRegistered: newEmp.faceRegistered,
+        faceVector: newEmp.faceVector,
+      });
+
+      if (autoLogin) login(newEmp.email, undefined, newEmp);
+      else if (onRegisteredSuccess) onRegisteredSuccess(newEmp.email);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register employee in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -611,10 +678,20 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
         </button>
         <button
           type="submit"
-          className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs cursor-pointer flex items-center gap-1.5"
+          disabled={isSubmitting}
+          className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
         >
-          <UserPlus className="h-4 w-4" />
-          <span>Register Employee</span>
+          {isSubmitting ? (
+            <>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <UserPlus className="h-4 w-4" />
+              <span>Register Employee</span>
+            </>
+          )}
         </button>
       </div>
     </form>

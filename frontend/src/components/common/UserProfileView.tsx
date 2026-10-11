@@ -18,10 +18,18 @@ import { useApp } from '../../context/AppContext';
 import { Skeleton, SkeletonAvatar } from './Skeleton';
 
 export const UserProfileView: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, updateUserProfile, refreshUsers } = useApp();
   const [phone, setPhone] = useState(currentUser?.phone || '+91 97910 11223');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentUser?.phone) {
+      setPhone(currentUser.phone);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -30,17 +38,38 @@ export const UserProfileView: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    try {
+      await refreshUsers();
+    } catch {
+      // ignore
+    } finally {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 450);
+    }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
+    if (!currentUser?.employeeId) return;
+
+    setIsSaving(true);
+    setSaveMessage('');
+    try {
+      const res = await updateUserProfile({
+        employeeId: currentUser.employeeId,
+        phone: phone.trim(),
+      });
+      setSavedSuccess(true);
+      setSaveMessage(res.message || 'Profile saved in MongoDB Atlas');
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err: any) {
+      setSaveMessage(err?.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -176,12 +205,22 @@ export const UserProfileView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              {savedSuccess && (
+                <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 animate-in fade-in">
+                  <Check className="h-3.5 w-3.5 stroke-3 text-emerald-600" />
+                  {saveMessage || 'Profile synced to MongoDB Atlas ✓'}
+                </span>
+              )}
+            </div>
             <button
               type="submit"
-              className="rounded-xl bg-slate-900 px-6 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs cursor-pointer"
+              disabled={isSaving}
+              className="rounded-xl bg-slate-900 px-6 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer flex items-center gap-2"
             >
-              {savedSuccess ? 'Profile Updated ✓' : 'Save Changes'}
+              {isSaving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+              <span>{isSaving ? 'Saving to Atlas...' : savedSuccess ? 'Profile Updated ✓' : 'Save Changes'}</span>
             </button>
           </div>
         </form>

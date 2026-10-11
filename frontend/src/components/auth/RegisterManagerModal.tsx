@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, UserCheck, AlertCircle, Building, Mail, Phone, Users, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { authApi } from '../../services/authApi';
 
 interface RegisterManagerModalProps {
   isOpen: boolean;
@@ -23,10 +24,11 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
   const [password, setPassword] = useState('');
   const [autoLogin, setAutoLogin] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -35,29 +37,40 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
       return;
     }
 
-    // Check if email exists
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('This corporate email is already registered in the system.');
-      return;
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerManager({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        title: title.trim(),
+        password: password.trim() || 'password123',
+      });
+
+      const newMgr = res.user;
+      addManager({
+        name: newMgr.name,
+        employeeId: newMgr.employeeId,
+        email: newMgr.email,
+        phone: newMgr.phone,
+        department: newMgr.department,
+        title: newMgr.title,
+      });
+
+      if (autoLogin) {
+        login(newMgr.email, undefined, newMgr);
+      } else if (onRegisteredSuccess) {
+        onRegisteredSuccess(newMgr.email);
+      }
+
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register manager in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const newMgr = addManager({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      title: title.trim(),
-    });
-
-    if (autoLogin) {
-      login(newMgr.email);
-    } else if (onRegisteredSuccess) {
-      onRegisteredSuccess(newMgr.email);
-    }
-
-    onClose();
   };
 
   return (
@@ -244,10 +257,20 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs cursor-pointer transition-colors"
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
             >
-              <UserCheck className="h-4 w-4" />
-              <span>Register Manager</span>
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Saving to Atlas...</span>
+                </>
+              ) : (
+                <>
+                  <UserCheck className="h-4 w-4" />
+                  <span>Register Manager</span>
+                </>
+              )}
             </button>
           </div>
         </form>

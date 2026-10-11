@@ -23,77 +23,67 @@ import {
   SkeletonListCard,
 } from '../common/Skeleton';
 
+import { adminApi, DashboardStatsResponse } from '../../services/adminApi';
+
 interface AdminDashboardProps {
   onNavigate: (tab: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
-  const { currentUser, users, todayAttendance, approvalAudits } = useApp();
+  const { currentUser, users, todayAttendance, approvalAudits, refreshUsers, refreshAttendance, refreshApprovalAudits } = useApp();
   const [isLoading, setIsLoading] = useState(true);
+  const [liveStats, setLiveStats] = useState<DashboardStatsResponse | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const loadStats = async () => {
+    try {
+      const data = await adminApi.getDashboardStats();
+      setLiveStats(data);
+    } catch (err) {
+      console.warn('[AdminDashboard] Failed to fetch live dashboard stats:', err);
+    } finally {
       setIsLoading(false);
-    }, 450);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    }
   };
 
-  const totalEmployeesCount = users.filter((u) => u.role === 'employee').length;
-  const presentCount = todayAttendance.filter(
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await Promise.all([
+      loadStats(),
+      refreshUsers(),
+      refreshAttendance(),
+      refreshApprovalAudits(),
+    ]);
+  };
+
+  const totalEmployeesCount = liveStats?.totalEmployeesCount ?? users.filter((u) => u.role === 'employee').length;
+  const presentCount = liveStats?.presentCount ?? todayAttendance.filter(
     (a) => a.status === 'Present' || a.status === 'Working'
   ).length;
-  const lateCount = todayAttendance.filter((a) => a.status === 'Late').length;
-  const onLeaveCount = todayAttendance.filter((a) => a.status === 'On Leave').length;
-  const absentCount = Math.max(0, totalEmployeesCount - (presentCount + lateCount + onLeaveCount));
+  const lateCount = liveStats?.lateCount ?? todayAttendance.filter((a) => a.status === 'Late').length;
+  const onLeaveCount = liveStats?.onLeaveCount ?? todayAttendance.filter((a) => a.status === 'On Leave').length;
+  const absentCount = liveStats?.absentCount ?? Math.max(0, totalEmployeesCount - (presentCount + lateCount + onLeaveCount));
 
   const totalTracked = Math.max(1, presentCount + lateCount + onLeaveCount + absentCount);
-  const presentPct = Math.round(((presentCount + lateCount) / totalTracked) * 100);
+  const presentPct = liveStats?.presentPct ?? Math.round(((presentCount + lateCount) / totalTracked) * 100);
 
-  // Recent activity logs
-  const recentActivities = [
-    {
-      employee: 'John Doe (EMP001)',
-      activity: 'Check-in via Face + GPS',
-      time: '09:12 AM',
-      type: 'checkin',
-      tagColor: 'text-emerald-700 bg-emerald-50 border-emerald-200/80',
-    },
-    {
-      employee: 'Anu Radha (EMP003)',
-      activity: 'Leave Approved by Priya Sundaram',
-      time: '09:30 AM',
-      type: 'leave',
-      tagColor: 'text-blue-700 bg-blue-50 border-blue-200/80',
-    },
-    {
-      employee: 'Ravi Teja (EMP002)',
-      activity: 'Check-in (Smart Flex Shift)',
-      time: '12:02 PM',
-      type: 'checkin',
-      tagColor: 'text-amber-700 bg-amber-50 border-amber-200/80',
-    },
-    {
-      employee: 'Priya Sundaram (MGR002)',
-      activity: 'Check-out (9h 00m logged)',
-      time: '05:45 PM',
-      type: 'checkout',
-      tagColor: 'text-slate-700 bg-slate-100 border-slate-200/80',
-    },
-    {
-      employee: 'Sarah Connor (EMP005)',
-      activity: 'Check-out Verified',
-      time: '06:10 PM',
-      type: 'checkout',
-      tagColor: 'text-slate-700 bg-slate-100 border-slate-200/80',
-    },
-  ];
+  // Live recent activity stream
+  const recentActivities = liveStats?.recentActivities && liveStats.recentActivities.length > 0
+    ? liveStats.recentActivities
+    : todayAttendance.slice(0, 5).map((rec) => ({
+        employee: `${rec.employeeName} (${rec.employeeId})`,
+        activity: rec.checkIn ? `Check-in via ${rec.verifiedBy}` : `Status: ${rec.status}`,
+        time: rec.checkIn || rec.date,
+        type: rec.checkIn ? 'checkin' : 'status',
+        tagColor: rec.status === 'Present'
+          ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
+          : rec.status === 'Late'
+          ? 'text-amber-700 bg-amber-50 border-amber-200/80'
+          : 'text-slate-700 bg-slate-100 border-slate-200/80',
+      }));
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -171,10 +161,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="mt-3 text-2xl font-bold text-slate-900">
-            {totalEmployeesCount || 120}
+            {totalEmployeesCount}
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Across 4 departments
+            Across {Object.keys(liveStats?.departmentBreakdown || {}).length || 3} departments
           </div>
         </div>
 
@@ -187,7 +177,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="mt-3 text-2xl font-bold text-emerald-600">
-            {presentCount || 98}
+            {presentCount}
           </div>
           <div className="mt-1 text-xs text-emerald-700 font-medium">
             {presentPct}% attendance rate
@@ -203,10 +193,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="mt-3 text-2xl font-bold text-rose-600">
-            {absentCount || 15}
+            {absentCount}
           </div>
           <div className="mt-1 text-xs text-rose-600">
-            Unexcused absences
+            Pending / Unexcused
           </div>
         </div>
 
@@ -219,7 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
           <div className="mt-3 text-2xl font-bold text-blue-600">
-            {onLeaveCount || 7}
+            {onLeaveCount}
           </div>
           <div className="mt-1 text-xs text-blue-600">
             Approved leaves

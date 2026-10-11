@@ -15,7 +15,7 @@ import { useApp } from '../../context/AppContext';
 import { Skeleton } from '../common/Skeleton';
 
 export const AdminApprovalAudit: React.FC = () => {
-  const { approvalAudits } = useApp();
+  const { approvalAudits, refreshApprovalAudits } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [decisionFilter, setDecisionFilter] = useState<'All' | 'Approved' | 'Rejected'>('All');
   const [isLoading, setIsLoading] = useState(true);
@@ -28,11 +28,10 @@ export const AdminApprovalAudit: React.FC = () => {
     return () => clearTimeout(timer);
   }, [decisionFilter]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    await refreshApprovalAudits();
+    setIsLoading(false);
   };
 
   const filteredAudits = approvalAudits.filter((audit) => {

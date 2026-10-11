@@ -13,45 +13,75 @@ import {
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
 import { Skeleton } from '../common/Skeleton';
+import { employeeApi } from '../../services/employeeApi';
 
 export const EmployeeAttendanceHistory: React.FC = () => {
-  const { currentUser, todayAttendance, historicalAttendance } = useApp();
+  const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
   const [selectedMonth, setSelectedMonth] = useState('October 2026');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [selectedMonth, statusFilter]);
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
-  };
+  const [liveRecords, setLiveRecords] = useState<AttendanceRecord[] | null>(null);
+  const [liveStats, setLiveStats] = useState<{
+    presentDays: number;
+    lateDays: number;
+    leaveDays: number;
+    absentDays: number;
+    attendancePercentage: number;
+  } | null>(null);
 
   const empId = currentUser?.employeeId || 'EMP001';
 
-  // Merge today's record and historical records for this employee
+  const fetchHistory = async () => {
+    setIsLoading(true);
+    try {
+      const monthPrefix = selectedMonth.includes('October') ? '2026-10' : '2026-09';
+      const res = await employeeApi.getAttendanceHistory(empId, statusFilter, monthPrefix);
+      if (res && res.records) {
+        setLiveRecords(res.records);
+        if (res.stats) {
+          setLiveStats({
+            presentDays: res.stats.presentDays,
+            lateDays: res.stats.lateDays,
+            leaveDays: res.stats.leaveDays,
+            absentDays: res.stats.absentDays,
+            attendancePercentage: res.stats.attendancePercentage,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch live history from MongoDB Atlas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, [empId, selectedMonth, statusFilter]);
+
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await Promise.all([refreshAttendance(), fetchHistory()]);
+  };
+
+  // Merge today's record and historical records for fallback
   const todayRec = todayAttendance.find((a) => a.employeeId === empId);
   const myHistory = historicalAttendance.filter((a) => a.employeeId === empId);
-  const allRecords = [...(todayRec ? [todayRec] : []), ...myHistory];
+  const fallbackRecords = [...(todayRec ? [todayRec] : []), ...myHistory];
+
+  const allRecords = liveRecords !== null ? liveRecords : fallbackRecords;
 
   const filteredRecords = allRecords.filter((rec) => {
     return statusFilter === 'All' || rec.status === statusFilter;
   });
 
-  // Top Statistics matching Section 8
-  const presentDays = 22;
-  const absentDays = 1;
-  const leaveDays = 2;
-  const lateDays = 3;
-  const attendancePercentage = 94.2;
+  // Calculate statistics dynamically from real Atlas records
+  const presentDays = liveStats?.presentDays ?? allRecords.filter((a) => a.status === 'Present' || a.status === 'Working').length;
+  const lateDays = liveStats?.lateDays ?? allRecords.filter((a) => a.status === 'Late').length;
+  const leaveDays = liveStats?.leaveDays ?? allRecords.filter((a) => a.status === 'On Leave').length;
+  const absentDays = liveStats?.absentDays ?? allRecords.filter((a) => a.status === 'Absent').length;
+  const totalDays = Math.max(1, presentDays + lateDays + leaveDays + absentDays);
+  const attendancePercentage = liveStats?.attendancePercentage ?? (Math.round(((presentDays + lateDays) / totalDays) * 1000) / 10);
 
   const getStatusBadge = (status: AttendanceStatus) => {
     switch (status) {
@@ -83,7 +113,7 @@ export const EmployeeAttendanceHistory: React.FC = () => {
     const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
     const link = document.createElement('a');
     link.href = encodeURI(csv);
-    link.download = `My_Attendance_${currentUser?.employeeId}_${selectedMonth.replace(' ', '_')}.csv`;
+    link.download = `My_Attendance_${currentUser?.employeeId || empId}_${selectedMonth.replace(' ', '_')}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -91,14 +121,14 @@ export const EmployeeAttendanceHistory: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header matching Section 8 */}
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
             My Attendance
           </h1>
           <p className="mt-1 text-sm text-slate-500 font-normal">
-            Monthly working log, attendance verification and smart-hours history.
+            Monthly working log, attendance verification and smart-hours history from MongoDB Atlas.
           </p>
         </div>
 
@@ -129,7 +159,7 @@ export const EmployeeAttendanceHistory: React.FC = () => {
         </div>
       </div>
 
-      {/* Monthly Attendance Rating & KPI cards matching Section 8 */}
+      {/* Monthly Attendance Rating & KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
         {/* Monthly Attendance Rating Hero Card */}
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 saas-card-shadow flex items-center gap-4 sm:col-span-2">
@@ -148,7 +178,7 @@ export const EmployeeAttendanceHistory: React.FC = () => {
               Monthly Attendance
             </div>
             <div className="text-base font-bold text-slate-900 mt-0.5">
-              Excellent Standing
+              {attendancePercentage >= 90 ? 'Excellent Standing' : attendancePercentage >= 75 ? 'Good Standing' : 'Needs Regularization'}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Fulfilling standard corporate shift requirements
@@ -190,12 +220,12 @@ export const EmployeeAttendanceHistory: React.FC = () => {
         </div>
       </div>
 
-      {/* Attendance Table matching Section 8 */}
+      {/* Attendance Table */}
       <div className="rounded-2xl border border-slate-200/80 bg-white saas-card-shadow overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-slate-400" />
-            <h2 className="text-sm font-bold text-slate-900">October 2026 Attendance Log</h2>
+            <h2 className="text-sm font-bold text-slate-900">{selectedMonth} Attendance Log</h2>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
@@ -209,11 +239,12 @@ export const EmployeeAttendanceHistory: React.FC = () => {
               <option value="Present">Present</option>
               <option value="Late">Late</option>
               <option value="On Leave">Leave</option>
+              <option value="Absent">Absent</option>
             </select>
           </div>
         </div>
 
-        {/* Horizontally Scrollable Table matching Section 8 & 20 */}
+        {/* Horizontally Scrollable Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
@@ -238,38 +269,44 @@ export const EmployeeAttendanceHistory: React.FC = () => {
                     <td className="px-6 py-4 text-right"><Skeleton className="h-5 w-32 rounded-md ml-auto" /></td>
                   </tr>
                 ))
+              ) : filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-xs text-slate-400">
+                    No attendance records found for this period.
+                  </td>
+                </tr>
               ) : (
                 filteredRecords.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-6 py-4 font-semibold text-slate-900">
                       {item.date}
                     </td>
-                  <td className="px-6 py-4 text-slate-700">
-                    {item.checkIn || <span className="text-slate-300">--</span>}
-                  </td>
-                  <td className="px-6 py-4 text-slate-700">
-                    {item.checkOut || <span className="text-slate-300">--</span>}
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-900">
-                    {item.hoursWorked || <span className="text-slate-300">--</span>}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${getStatusBadge(
-                        item.status
-                      )}`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-100">
-                      <Check className="h-3 w-3 text-emerald-600" />
-                      <span>Face + Office GPS ✓</span>
-                    </span>
-                  </td>
-                </tr>
-              ))
+                    <td className="px-6 py-4 text-slate-700">
+                      {item.checkIn || <span className="text-slate-300">--</span>}
+                    </td>
+                    <td className="px-6 py-4 text-slate-700">
+                      {item.checkOut || <span className="text-slate-300">--</span>}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      {item.hoursWorked || <span className="text-slate-300">--</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${getStatusBadge(
+                          item.status
+                        )}`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-100">
+                        <Check className="h-3 w-3 text-emerald-600" />
+                        <span>{item.verifiedBy || 'Face + Office GPS'}</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

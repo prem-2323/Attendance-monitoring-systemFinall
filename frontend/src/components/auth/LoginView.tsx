@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { authApi } from '../../services/authApi';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { RegisterModal } from './RegisterModal';
 import { RegisterAdminModal } from './RegisterAdminModal';
@@ -36,33 +37,54 @@ export const LoginView: React.FC = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [registerRole, setRegisterRole] = useState<UserRole | null>(null);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const success = login(identifier);
-      if (!success) {
-        setErrorMsg('Invalid credentials. Check Email or Employee ID (or use Quick Demo logins below).');
+    try {
+      const res = await authApi.login(identifier.trim(), password.trim());
+      if (res.user) {
+        login(res.user.email, undefined, res.user);
+      } else {
+        const ok = login(identifier);
+        if (!ok) {
+          setErrorMsg('Invalid credentials. Check Email or Employee ID.');
+        }
       }
+    } catch (err: any) {
+      // Fallback check against local cache
+      const ok = login(identifier);
+      if (!ok) {
+        setErrorMsg(err.message || 'Invalid credentials. Check Email or Employee ID.');
+      }
+    } finally {
       setIsSubmitting(false);
-    }, 350);
+    }
   };
 
-  const handleQuickDemo = (emailOrId: string) => {
+  const handleQuickDemo = async (emailOrId: string) => {
     setIdentifier(emailOrId);
     setPassword('demoPass2026!');
     setErrorMsg('');
     setSuccessMsg('');
+    try {
+      const res = await authApi.login(emailOrId, 'demoPass2026!');
+      if (res.user) {
+        login(res.user.email, undefined, res.user);
+        return;
+      }
+    } catch {
+      // Fallback to local
+    }
     login(emailOrId);
   };
 
   const handleRegisteredSuccess = (newEmail: string) => {
     setIdentifier(newEmail);
     setAuthTab('login');
-    setSuccessMsg(`Account registered successfully for ${newEmail}. You can sign in.`);
+    setSuccessMsg(`Account registered successfully in MongoDB Atlas for ${newEmail}. You can sign in.`);
   };
 
   return (

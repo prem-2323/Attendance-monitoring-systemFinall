@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ClipboardList,
   Calendar,
   CheckCircle2,
   Clock,
   ArrowRight,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { LeaveType } from '../../types';
+import { employeeApi } from '../../services/employeeApi';
 
 interface EmployeeApplyLeaveProps {
   onNavigateStatus: () => void;
@@ -17,24 +20,68 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
   const { currentUser, applyLeave } = useApp();
 
   const [leaveType, setLeaveType] = useState<LeaveType>('Casual Leave');
-  const [fromDate, setFromDate] = useState('2026-10-15');
-  const [toDate, setToDate] = useState('2026-10-16');
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  });
   const [reason, setReason] = useState('Personal family event in native town.');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Live dynamic quotas from MongoDB Atlas
+  const [quotas, setQuotas] = useState({
+    casualRemaining: 12,
+    sickRemaining: 10,
+    earnedRemaining: 15,
+  });
+
+  const empId = currentUser?.employeeId || 'EMP001';
+
+  useEffect(() => {
+    if (!empId) return;
+    employeeApi.getLeaveRequests(empId)
+      .then((res) => {
+        if (res?.quotas) {
+          setQuotas({
+            casualRemaining: res.quotas.casualRemaining,
+            sickRemaining: res.quotas.sickRemaining,
+            earnedRemaining: res.quotas.earnedRemaining,
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch dynamic quotas:', err);
+      });
+  }, [empId, submittedSuccess]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
 
-    applyLeave({
-      employeeId: currentUser.employeeId,
-      leaveType,
-      fromDate,
-      toDate,
-      reason,
-    });
+    setIsSubmitting(true);
+    setErrorMessage('');
 
-    setSubmittedSuccess(true);
+    try {
+      await applyLeave({
+        employeeId: currentUser.employeeId,
+        leaveType,
+        fromDate,
+        toDate,
+        reason,
+      });
+      setSubmittedSuccess(true);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to submit leave request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,6 +96,20 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
         </p>
       </div>
 
+      {errorMessage && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50/95 p-3.5 text-xs font-medium text-rose-800 shadow-xs">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+          <span className="flex-1 font-semibold">{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => setErrorMessage('')}
+            className="rounded-md bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-200 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {submittedSuccess ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-8 text-center space-y-4 saas-card-shadow animate-in fade-in duration-200">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
@@ -58,7 +119,7 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
             Leave Request Submitted
           </h2>
           <p className="text-sm text-emerald-800 max-w-md mx-auto leading-relaxed">
-            Your application for <strong>{leaveType}</strong> from <strong>{fromDate}</strong> to <strong>{toDate}</strong> has been forwarded to <strong>{currentUser?.managerName || 'Manager'}</strong>.
+            Your application for <strong>{leaveType}</strong> from <strong>{fromDate}</strong> to <strong>{toDate}</strong> has been saved in MongoDB Atlas and forwarded to <strong>{currentUser?.managerName || 'Manager'}</strong>.
           </p>
           <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
             <button
@@ -80,7 +141,7 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 saas-card-shadow space-y-5">
-          {/* Annual Quotas matching Section 10 */}
+          {/* Dynamic Annual Quotas calculated from MongoDB Atlas */}
           <div>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
               Available Annual Quotas
@@ -88,15 +149,15 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/60">
                 <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Casual</span>
-                <span className="text-lg font-bold text-slate-900 block mt-0.5">6 Remaining</span>
+                <span className="text-lg font-bold text-slate-900 block mt-0.5">{quotas.casualRemaining} Remaining</span>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/60">
                 <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Sick</span>
-                <span className="text-lg font-bold text-slate-900 block mt-0.5">8 Remaining</span>
+                <span className="text-lg font-bold text-slate-900 block mt-0.5">{quotas.sickRemaining} Remaining</span>
               </div>
               <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/60">
                 <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Earned</span>
-                <span className="text-lg font-bold text-slate-900 block mt-0.5">14 Remaining</span>
+                <span className="text-lg font-bold text-slate-900 block mt-0.5">{quotas.earnedRemaining} Remaining</span>
               </div>
             </div>
           </div>
@@ -163,13 +224,21 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
             />
           </div>
 
-          {/* Submit button matching Section 10 */}
+          {/* Submit button */}
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-xs hover:bg-slate-800 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-xs hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Submit Leave Request
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-300" />
+                  <span>Submitting to Atlas...</span>
+                </>
+              ) : (
+                <span>Submit Leave Request</span>
+              )}
             </button>
           </div>
         </form>

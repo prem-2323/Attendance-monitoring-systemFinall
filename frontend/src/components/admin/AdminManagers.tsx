@@ -8,7 +8,7 @@ interface AdminManagersProps {
 }
 
 export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManager }) => {
-  const { users, addManager } = useApp();
+  const { users, addManager, refreshUsers } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState(`MGR00${users.filter((u) => u.role === 'manager').length + 1}`);
@@ -25,20 +25,19 @@ export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManag
     return () => clearTimeout(timer);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    await refreshUsers();
+    setIsLoading(false);
   };
 
   const managers = users.filter((u) => u.role === 'manager');
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) return;
 
-    addManager({
+    await addManager({
       name,
       employeeId,
       email,

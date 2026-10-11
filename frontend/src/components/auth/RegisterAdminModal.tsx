@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, KeyRound, AlertCircle, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { authApi } from '../../services/authApi';
 
 interface RegisterAdminModalProps {
   isOpen: boolean;
@@ -23,10 +24,11 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
   const [securityPasskey, setSecurityPasskey] = useState('AMS-ROOT-2026');
   const [autoLogin, setAutoLogin] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -40,29 +42,40 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
       return;
     }
 
-    // Check if email already registered
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setErrorMsg('This corporate email is already registered in the system.');
-      return;
+    setIsSubmitting(true);
+    try {
+      const res = await authApi.registerAdmin({
+        name: name.trim(),
+        employeeId: employeeId.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        department,
+        password: password.trim() || 'password123',
+        securityPasskey: securityPasskey.trim(),
+      });
+
+      const newAdmin = res.user;
+      addAdmin({
+        name: newAdmin.name,
+        employeeId: newAdmin.employeeId,
+        email: newAdmin.email,
+        phone: newAdmin.phone,
+        department: newAdmin.department,
+        title: newAdmin.title || 'System Administrator',
+      });
+
+      if (autoLogin) {
+        login(newAdmin.email, undefined, newAdmin);
+      } else if (onRegisteredSuccess) {
+        onRegisteredSuccess(newAdmin.email);
+      }
+
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register administrator in MongoDB Atlas.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const newAdmin = addAdmin({
-      name: name.trim(),
-      employeeId: employeeId.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      department,
-      title: 'System Administrator',
-    });
-
-    if (autoLogin) {
-      login(newAdmin.email);
-    } else if (onRegisteredSuccess) {
-      onRegisteredSuccess(newAdmin.email);
-    }
-
-    onClose();
   };
 
   return (
@@ -246,10 +259,20 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 shadow-xs cursor-pointer transition-colors"
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
             >
-              <ShieldCheck className="h-4 w-4" />
-              <span>Register Administrator</span>
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Saving to Atlas...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Register Administrator</span>
+                </>
+              )}
             </button>
           </div>
         </form>

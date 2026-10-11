@@ -10,10 +10,12 @@ import {
   X,
   Check,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { LeaveRequest, AttendanceRecord } from '../../types';
 import { Skeleton } from '../common/Skeleton';
+import { managerApi, EmployeeAttendanceAnalysis } from '../../services/managerApi';
 
 export const ManagerLeaveApproval: React.FC = () => {
   const {
@@ -23,31 +25,51 @@ export const ManagerLeaveApproval: React.FC = () => {
     historicalAttendance,
     todayAttendance,
     users,
+    refreshLeaveRequests,
+    refreshApprovalAudits,
   } = useApp();
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [remarksInput, setRemarksInput] = useState<{ [reqId: string]: string }>({});
   const [filterTab, setFilterTab] = useState<'pending' | 'reviewed'>('pending');
   const [isLoading, setIsLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Live leaves from MongoDB Atlas
+  const [liveLeaves, setLiveLeaves] = useState<LeaveRequest[] | null>(null);
+
+  // Live employee attendance analysis for modal
+  const [modalAnalysis, setModalAnalysis] = useState<EmployeeAttendanceAnalysis | null>(null);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+
+  const managerId = currentUser?.id || currentUser?.employeeId || 'user-mgr-1';
+
+  const fetchTeamLeaves = async () => {
+    setIsLoading(true);
+    try {
+      const res = await managerApi.getTeamLeaves(managerId);
+      if (res && res.leaveRequests) {
+        setLiveLeaves(res.leaveRequests);
+      }
+    } catch (err) {
+      console.warn('Could not fetch team leave requests from Atlas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [filterTab]);
+    fetchTeamLeaves();
+  }, [managerId, filterTab]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
+    await Promise.all([refreshLeaveRequests(), refreshApprovalAudits(), fetchTeamLeaves()]);
   };
 
   // Filter requests relevant to this manager or all if admin
-  const teamLeaves = leaveRequests.filter(
-    (l) => currentUser?.role === 'admin' || l.managerId === currentUser?.id
+  const teamLeaves = liveLeaves !== null ? liveLeaves : leaveRequests.filter(
+    (l) => currentUser?.role === 'admin' || l.managerId === currentUser?.id || l.managerName === currentUser?.name
   );
 
   const pendingRequests = teamLeaves.filter((l) => l.status === 'Pending');
@@ -55,25 +77,53 @@ export const ManagerLeaveApproval: React.FC = () => {
 
   const displayedRequests = filterTab === 'pending' ? pendingRequests : reviewedRequests;
 
-  // Selected employee attendance history
+  // Selected employee attendance history for modal
   const selectedEmployee = users.find((u) => u.employeeId === selectedEmployeeId);
-  const employeeAttendanceHistory = [
+
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setModalAnalysis(null);
+      return;
+    }
+    setIsModalLoading(true);
+    managerApi.getEmployeeHistory(selectedEmployeeId)
+      .then((data) => {
+        setModalAnalysis(data);
+      })
+      .catch((err) => {
+        console.warn('Failed to load employee history for modal:', err);
+      })
+      .finally(() => {
+        setIsModalLoading(false);
+      });
+  }, [selectedEmployeeId]);
+
+  // Compute stats for modal fallback
+  const fallbackHistory = [
     ...todayAttendance,
     ...historicalAttendance,
   ].filter((a) => a.employeeId === selectedEmployeeId);
 
-  // Compute stats for modal
-  const totalDays = employeeAttendanceHistory.length || 1;
-  const presentDays = employeeAttendanceHistory.filter(
+  const employeeAttendanceHistory = modalAnalysis?.records || fallbackHistory;
+  const totalDays = modalAnalysis?.stats?.totalDays || Math.max(1, employeeAttendanceHistory.length);
+  const presentDays = modalAnalysis?.stats?.presentDays || employeeAttendanceHistory.filter(
     (a) => a.status === 'Present' || a.status === 'Working'
   ).length;
-  const lateDays = employeeAttendanceHistory.filter((a) => a.status === 'Late').length;
-  const absentDays = employeeAttendanceHistory.filter((a) => a.status === 'Absent').length;
-  const attendancePct = Math.round(((presentDays + lateDays) / Math.max(1, totalDays)) * 100);
+  const lateDays = modalAnalysis?.stats?.lateDays || employeeAttendanceHistory.filter((a) => a.status === 'Late').length;
+  const absentDays = modalAnalysis?.stats?.absentDays || employeeAttendanceHistory.filter((a) => a.status === 'Absent').length;
+  const attendancePct = modalAnalysis?.stats?.attendancePercentage || Math.round(((presentDays + lateDays) / Math.max(1, totalDays)) * 100);
 
-  const handleDecision = (requestId: string, decision: 'Approved' | 'Rejected') => {
+  const handleDecision = async (requestId: string, decision: 'Approved' | 'Rejected') => {
+    setProcessingId(requestId);
     const remark = remarksInput[requestId] || '';
-    reviewLeaveRequest(requestId, decision, remark);
+    try {
+      await reviewLeaveRequest(requestId, decision, remark);
+      await fetchTeamLeaves();
+    } catch (err) {
+      console.warn('Failed to review leave request:', err);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   return (
@@ -85,7 +135,7 @@ export const ManagerLeaveApproval: React.FC = () => {
             Leave Requests & Smart Approvals
           </h1>
           <p className="mt-1 text-sm text-slate-500 font-normal">
-            Inspect employee attendance history and punctuality track record before approving team leave.
+            Inspect employee attendance history and punctuality track record before approving team leave in MongoDB Atlas.
           </p>
         </div>
 
@@ -164,7 +214,7 @@ export const ManagerLeaveApproval: React.FC = () => {
             {filterTab === 'pending' ? 'No pending leave requests' : 'No reviewed requests found'}
           </h3>
           <p className="mt-1 text-xs text-slate-400">
-            All team leave requests are currently up to date.
+            All team leave requests are currently up to date in MongoDB Atlas.
           </p>
         </div>
       ) : (
@@ -226,7 +276,7 @@ export const ManagerLeaveApproval: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons matching Section 7 */}
+              {/* Action Buttons */}
               {req.status === 'Pending' && (
                 <div className="mt-5 border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="w-full sm:w-1/2">
@@ -255,20 +305,30 @@ export const ManagerLeaveApproval: React.FC = () => {
                     {/* Approve Button */}
                     <button
                       type="button"
+                      disabled={processingId === req.id}
                       onClick={() => handleDecision(req.id, 'Approved')}
-                      className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-xs"
+                      className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      {processingId === req.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
                       <span>Approve</span>
                     </button>
 
                     {/* Reject Button */}
                     <button
                       type="button"
+                      disabled={processingId === req.id}
                       onClick={() => handleDecision(req.id, 'Rejected')}
-                      className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      {processingId === req.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
                       <span>Reject</span>
                     </button>
                   </div>
@@ -278,7 +338,7 @@ export const ManagerLeaveApproval: React.FC = () => {
               {/* Reviewed Note */}
               {req.status !== 'Pending' && (
                 <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500 flex items-center justify-between">
-                  <span>Reviewed by {req.managerName} on {req.reviewedAt || '2026-10-08'}</span>
+                  <span>Reviewed by {req.managerName} on {req.reviewedAt || 'Recorded in Atlas'}</span>
                   {req.reviewRemarks && (
                     <span className="text-slate-700 font-medium">Note: "{req.reviewRemarks}"</span>
                   )}
@@ -300,7 +360,7 @@ export const ManagerLeaveApproval: React.FC = () => {
                   Attendance Record Analysis: {selectedEmployee?.name || selectedEmployeeId}
                 </h3>
                 <p className="text-xs text-slate-500 font-normal">
-                  Employee ID: {selectedEmployeeId} · Department: {selectedEmployee?.department}
+                  Employee ID: {selectedEmployeeId} · Department: {selectedEmployee?.department || 'Engineering'}
                 </p>
               </div>
               <button
@@ -311,104 +371,123 @@ export const ManagerLeaveApproval: React.FC = () => {
               </button>
             </div>
 
-            {/* Smart Approval Insight Banner */}
-            <div className="mt-4 rounded-xl bg-blue-50/70 border border-blue-200/80 p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-blue-950 uppercase tracking-wider">
-                    Smart Approval Decision Matrix
+            {isModalLoading ? (
+              <div className="py-12 text-center space-y-3">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+                <p className="text-xs text-slate-500">Querying verified biometric history from MongoDB Atlas...</p>
+              </div>
+            ) : (
+              <>
+                {/* Smart Approval Insight Banner */}
+                <div className="mt-4 rounded-xl bg-blue-50/70 border border-blue-200/80 p-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold text-blue-950 uppercase tracking-wider">
+                        Smart Approval Decision Matrix
+                      </h4>
+                      <p className="text-xs text-blue-900 mt-1 leading-relaxed">
+                        Employee holds an attendance rating of <strong>{attendancePct}%</strong>.
+                        Verified biometric track record indicates <strong>{presentDays} on-time days</strong> and{' '}
+                        <strong>{lateDays} late arrival(s)</strong> over the recorded monitoring period.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attendance Score Cards */}
+                <div className="mt-4 grid grid-cols-4 gap-3 text-center">
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rating</div>
+                    <div className="text-xl font-bold text-emerald-600 mt-1">
+                      {attendancePct}%
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Present</div>
+                    <div className="text-xl font-bold text-slate-900 mt-1">
+                      {presentDays}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Late</div>
+                    <div className="text-xl font-bold text-amber-600 mt-1">
+                      {lateDays}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Absent</div>
+                    <div className="text-xl font-bold text-rose-600 mt-1">
+                      {absentDays}
+                    </div>
+                  </div>
+                </div>
+
+                {/* History Table */}
+                <div className="mt-6">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5">
+                    Recent Daily Check-in Log (MongoDB Atlas)
                   </h4>
-                  <p className="text-xs text-blue-900 mt-1 leading-relaxed">
-                    Employee holds a strong attendance percentage of <strong>{attendancePct}%</strong>.
-                    Punctuality track record indicates <strong>{presentDays} on-time days</strong> and only{' '}
-                    <strong>{lateDays} late arrival(s)</strong> over the recorded monitoring period.
-                  </p>
+                  <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
+                        <tr>
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Check-in</th>
+                          <th className="px-4 py-3">Check-out</th>
+                          <th className="px-4 py-3">Hours</th>
+                          <th className="px-4 py-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {employeeAttendanceHistory.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-6 text-center text-xs text-slate-400">
+                              No historical logs found for this employee.
+                            </td>
+                          </tr>
+                        ) : (
+                          employeeAttendanceHistory.map((h) => (
+                            <tr key={h.id} className="hover:bg-slate-50/70">
+                              <td className="px-4 py-2.5 font-medium text-slate-900">{h.date}</td>
+                              <td className="px-4 py-2.5 text-slate-700">
+                                {h.checkIn || '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-700">
+                                {h.checkOut || '—'}
+                              </td>
+                              <td className="px-4 py-2.5 font-semibold text-slate-900">
+                                {h.hoursWorked || '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-right">
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
+                                    h.status === 'Present'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                                      : h.status === 'Working'
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200/80'
+                                      : h.status === 'Late'
+                                      ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
+                                      : h.status === 'On Leave'
+                                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-200/80'
+                                  }`}
+                                >
+                                  {h.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Attendance Score Cards */}
-            <div className="mt-4 grid grid-cols-4 gap-3 text-center">
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rating</div>
-                <div className="text-xl font-bold text-emerald-600 mt-1">
-                  {attendancePct}%
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Present</div>
-                <div className="text-xl font-bold text-slate-900 mt-1">
-                  {presentDays}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Late</div>
-                <div className="text-xl font-bold text-amber-600 mt-1">
-                  {lateDays}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Absent</div>
-                <div className="text-xl font-bold text-rose-600 mt-1">
-                  {absentDays}
-                </div>
-              </div>
-            </div>
-
-            {/* History Table */}
-            <div className="mt-6">
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5">
-                Recent Daily Check-in Log (October 2026)
-              </h4>
-              <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
-                    <tr>
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Check-in</th>
-                      <th className="px-4 py-3">Check-out</th>
-                      <th className="px-4 py-3">Hours</th>
-                      <th className="px-4 py-3 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {employeeAttendanceHistory.map((h) => (
-                      <tr key={h.id} className="hover:bg-slate-50/70">
-                        <td className="px-4 py-2.5 font-medium text-slate-900">{h.date}</td>
-                        <td className="px-4 py-2.5 text-slate-700">
-                          {h.checkIn || '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-700">
-                          {h.checkOut || '—'}
-                        </td>
-                        <td className="px-4 py-2.5 font-semibold text-slate-900">
-                          {h.hoursWorked || '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
-                              h.status === 'Present'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-                                : h.status === 'Late'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
-                                : h.status === 'On Leave'
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200/80'
-                            }`}
-                          >
-                            {h.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+              </>
+            )}
 
             {/* Close Modal button */}
             <div className="mt-6 flex justify-end">

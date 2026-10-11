@@ -9,33 +9,46 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { LeaveStatus } from '../../types';
+import { LeaveStatus, LeaveRequest } from '../../types';
 import { Skeleton } from '../common/Skeleton';
+import { employeeApi } from '../../services/employeeApi';
 
 interface EmployeeLeaveStatusProps {
   onApplyNew: () => void;
 }
 
 export const EmployeeLeaveStatus: React.FC<EmployeeLeaveStatusProps> = ({ onApplyNew }) => {
-  const { currentUser, leaveRequests } = useApp();
+  const { currentUser, leaveRequests, refreshLeaveRequests } = useApp();
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 450);
-  };
+  const [liveLeaves, setLiveLeaves] = useState<LeaveRequest[] | null>(null);
 
   const empId = currentUser?.employeeId || 'EMP001';
-  const myLeaves = leaveRequests.filter((l) => l.employeeId === empId);
+
+  const fetchLeaves = async () => {
+    setIsLoading(true);
+    try {
+      const res = await employeeApi.getLeaveRequests(empId);
+      if (res && res.leaveRequests) {
+        setLiveLeaves(res.leaveRequests);
+      }
+    } catch (err) {
+      console.warn('Could not fetch leave requests from MongoDB Atlas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaves();
+  }, [empId]);
+
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await Promise.all([refreshLeaveRequests(), fetchLeaves()]);
+  };
+
+  const fallbackLeaves = leaveRequests.filter((l) => l.employeeId === empId);
+  const myLeaves = liveLeaves !== null ? liveLeaves : fallbackLeaves;
 
   const getStatusBadge = (status: LeaveStatus) => {
     switch (status) {
@@ -72,7 +85,7 @@ export const EmployeeLeaveStatus: React.FC<EmployeeLeaveStatusProps> = ({ onAppl
             Leave Status
           </h1>
           <p className="mt-1 text-sm text-slate-500 font-normal">
-            Real-time managerial review status and historical leave records.
+            Real-time managerial review status and historical leave records from MongoDB Atlas.
           </p>
         </div>
 
@@ -95,7 +108,7 @@ export const EmployeeLeaveStatus: React.FC<EmployeeLeaveStatusProps> = ({ onAppl
         </div>
       </div>
 
-      {/* Table matching Section 11 */}
+      {/* Table */}
       <div className="rounded-2xl border border-slate-200/80 bg-white saas-card-shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

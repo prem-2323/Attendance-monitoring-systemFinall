@@ -53,7 +53,7 @@ export const AdminAddManager: React.FC<AdminAddManagerProps> = ({ onCancel, onSu
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !employeeId.trim()) {
@@ -61,18 +61,22 @@ export const AdminAddManager: React.FC<AdminAddManagerProps> = ({ onCancel, onSu
       return;
     }
 
-    addManager({
-      name,
-      employeeId,
-      email,
-      phone,
-      department,
-      title,
-      avatarUrl,
-      faceRegistered,
-    });
+    try {
+      await addManager({
+        name,
+        employeeId,
+        email,
+        phone,
+        department,
+        title,
+        avatarUrl,
+        faceRegistered,
+      });
 
-    onSuccess();
+      onSuccess();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to register manager');
+    }
   };
 
   return (
