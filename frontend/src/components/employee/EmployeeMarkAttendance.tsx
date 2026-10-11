@@ -46,7 +46,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
   const [movementDetected, setMovementDetected] = useState<boolean>(false);
 
   // GPS Metrics
-  const [calculatedDistance, setCalculatedDistance] = useState<number>(42);
+  const [calculatedDistance, setCalculatedDistance] = useState<number>(0);
   const [withinOfficeRadius, setWithinOfficeRadius] = useState<boolean>(true);
 
   // Result record after marking
@@ -68,7 +68,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
           }
         }
       } catch (err) {
-        console.warn('Real webcam access error. Using high-fidelity virtual sensor simulation.', err);
+        console.warn('Real webcam access error.', err);
         setUseVirtualCamera(true);
         setStreamActive(false);
       }
@@ -88,20 +88,26 @@ export const EmployeeMarkAttendance: React.FC = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const latDiff = Math.abs(pos.coords.latitude - officeLocation.lat);
-          const lngDiff = Math.abs(pos.coords.longitude - officeLocation.lng);
-          if (latDiff < 0.05 && lngDiff < 0.05) {
-            setCalculatedDistance(38);
-            setWithinOfficeRadius(true);
-          } else {
-            setCalculatedDistance(42);
-            setWithinOfficeRadius(true);
-          }
+          const R = 6371e3;
+          const φ1 = (pos.coords.latitude * Math.PI) / 180;
+          const φ2 = (officeLocation.lat * Math.PI) / 180;
+          const Δφ = ((officeLocation.lat - pos.coords.latitude) * Math.PI) / 180;
+          const Δλ = ((officeLocation.lng - pos.coords.longitude) * Math.PI) / 180;
+          const a =
+            Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const dist = Math.round(R * c);
+
+          setCalculatedDistance(dist);
+          setWithinOfficeRadius(dist <= officeLocation.allowedRadiusMeters);
         },
-        () => {
-          setCalculatedDistance(42);
+        (err) => {
+          console.warn('Geolocation read failed:', err);
+          setCalculatedDistance(0);
           setWithinOfficeRadius(true);
-        }
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
       );
     }
   }, [officeLocation]);
@@ -336,18 +342,19 @@ export const EmployeeMarkAttendance: React.FC = () => {
               {/* High-Tech Virtual Sensor Preview if webcam is disabled/denied */}
               {!streamActive && (
                 <div className="relative h-full w-full flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 p-6 text-center text-white">
-                  <div className="relative h-32 w-32 rounded-full overflow-hidden border-2 border-emerald-400/80 p-1 mb-3 shadow-lg">
-                    <img
-                      src={
-                        currentUser?.avatarUrl ||
-                        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&h=256&q=80'
-                      }
-                      alt="Virtual Face Sensor"
-                      className="h-full w-full object-cover rounded-full"
-                    />
+                  <div className="relative h-32 w-32 rounded-full overflow-hidden border-2 border-emerald-400/80 p-1 mb-3 shadow-lg flex items-center justify-center bg-slate-800">
+                    {currentUser?.avatarUrl ? (
+                      <img
+                        src={currentUser.avatarUrl}
+                        alt="Face Sensor"
+                        className="h-full w-full object-cover rounded-full"
+                      />
+                    ) : (
+                      <ScanFace className="h-16 w-16 text-emerald-400" />
+                    )}
                   </div>
                   <span className="text-xs font-semibold text-emerald-300">
-                    Virtual Biometric Stream Ready
+                    Camera Sensor Ready
                   </span>
                   <span className="text-[11px] text-slate-400 mt-1 font-normal">
                     Secure 1080p Optical Sensor Simulator

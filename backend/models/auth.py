@@ -13,6 +13,7 @@ class AdminRegisterRequest(BaseModel):
     department: Optional[str] = "System Administration"
     password: Optional[str] = "password123"
     securityPasskey: str = Field(...)
+    avatarUrl: Optional[str] = None
 
 
 class ManagerRegisterRequest(BaseModel):
@@ -23,6 +24,7 @@ class ManagerRegisterRequest(BaseModel):
     department: Optional[str] = "Engineering"
     title: Optional[str] = "Engineering Lead"
     password: Optional[str] = "password123"
+    avatarUrl: Optional[str] = None
 
 
 class EmployeeRegisterRequest(BaseModel):
@@ -32,7 +34,7 @@ class EmployeeRegisterRequest(BaseModel):
     phone: Optional[str] = "+91 "
     department: Optional[str] = "Engineering"
     managerId: Optional[str] = None
-    managerName: Optional[str] = "Kumar Verma"
+    managerName: Optional[str] = None
     password: Optional[str] = "password123"
     faceRegistered: Optional[bool] = False
     faceVector: Optional[str] = None

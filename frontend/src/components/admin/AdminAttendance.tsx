@@ -42,22 +42,27 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     refreshAttendance,
   } = useApp();
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+  const currentMonthPrefix = todayStr.slice(0, 7);
+
   const [viewMode, setViewMode] = useState<'today' | 'history'>(initialMode);
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [deptFilter, setDeptFilter] = useState<string>('All');
   const [employeeFilter, setEmployeeFilter] = useState<string>('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [datePreset, setDatePreset] = useState<'all' | 'oct' | 'week' | 'custom'>('all');
-  const [fromDate, setFromDate] = useState<string>('2026-10-01');
-  const [toDate, setToDate] = useState<string>('2026-10-10');
+  const [datePreset, setDatePreset] = useState<'all' | 'month' | 'week' | 'custom'>('all');
+  const [fromDate, setFromDate] = useState<string>(firstDayOfMonth);
+  const [toDate, setToDate] = useState<string>(todayStr);
   const [inspectRecord, setInspectRecord] = useState<AttendanceRecord | null>(null);
 
   // Manual regularization modal
   const [showOverrideModal, setShowOverrideModal] = useState(false);
-  const [overrideEmpId, setOverrideEmpId] = useState('EMP001');
-  const [overrideDate, setOverrideDate] = useState('2026-10-10');
+  const [overrideEmpId, setOverrideEmpId] = useState(users[0]?.employeeId || '');
+  const [overrideDate, setOverrideDate] = useState(todayStr);
   const [overrideStatus, setOverrideStatus] = useState<AttendanceStatus>('Present');
-  const [overrideReason, setOverrideReason] = useState('Onsite client visit approved by management.');
+  const [overrideReason, setOverrideReason] = useState('');
   const [statusFeedback, setStatusFeedback] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -91,10 +96,10 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     if (viewMode === 'history') {
       if (datePreset === 'all') {
         matchesDate = true;
-      } else if (datePreset === 'oct') {
-        matchesDate = item.date.startsWith('2026-10');
+      } else if (datePreset === 'month') {
+        matchesDate = item.date.startsWith(currentMonthPrefix);
       } else if (datePreset === 'week') {
-        matchesDate = item.date >= '2026-10-03';
+        matchesDate = item.date >= weekAgoStr;
       } else if (datePreset === 'custom') {
         matchesDate = (!fromDate || item.date >= fromDate) && (!toDate || item.date <= toDate);
       }
@@ -198,7 +203,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
           </h1>
           <p className="mt-1 text-xs text-slate-500">
             {viewMode === 'today'
-              ? "Live biometric surveillance and arrival tracking for today's active shift (Oct 10, 2026)."
+              ? `Live biometric surveillance and arrival tracking for today's active shift (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}).`
               : 'Complete multi-day historical check-in audit logs, punctuality metrics, and working hour records.'}
           </p>
         </div>
@@ -214,7 +219,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Today's Attendance (Oct 10)
+              Today's Attendance ({new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
             </button>
             <button
               onClick={() => {
@@ -346,14 +351,14 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                 All History
               </button>
               <button
-                onClick={() => setDatePreset('oct')}
+                onClick={() => setDatePreset('month')}
                 className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                  datePreset === 'oct'
+                  datePreset === 'month'
                     ? 'bg-slate-900 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                October 2026
+                This Month
               </button>
               <button
                 onClick={() => setDatePreset('week')}

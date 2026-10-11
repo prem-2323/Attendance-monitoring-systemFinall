@@ -26,8 +26,8 @@ import { UserRole } from '../../types';
 
 export const LoginView: React.FC = () => {
   const { login } = useApp();
-  const [identifier, setIdentifier] = useState('john.doe@company.com');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +39,10 @@ export const LoginView: React.FC = () => {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!identifier.trim() || !password.trim()) {
+      setErrorMsg('Please enter both your Email/ID and password.');
+      return;
+    }
     setErrorMsg('');
     setSuccessMsg('');
     setIsSubmitting(true);
@@ -48,41 +52,18 @@ export const LoginView: React.FC = () => {
       if (res.user) {
         login(res.user.email, undefined, res.user);
       } else {
-        const ok = login(identifier);
-        if (!ok) {
-          setErrorMsg('Invalid credentials. Check Email or Employee ID.');
-        }
+        setErrorMsg('Invalid credentials. Check Email or Employee ID.');
       }
     } catch (err: any) {
-      // Fallback check against local cache
-      const ok = login(identifier);
-      if (!ok) {
-        setErrorMsg(err.message || 'Invalid credentials. Check Email or Employee ID.');
-      }
+      setErrorMsg(err.message || 'Invalid credentials. Check Email or Employee ID.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleQuickDemo = async (emailOrId: string) => {
-    setIdentifier(emailOrId);
-    setPassword('demoPass2026!');
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const res = await authApi.login(emailOrId, 'demoPass2026!');
-      if (res.user) {
-        login(res.user.email, undefined, res.user);
-        return;
-      }
-    } catch {
-      // Fallback to local
-    }
-    login(emailOrId);
-  };
-
   const handleRegisteredSuccess = (newEmail: string) => {
     setIdentifier(newEmail);
+
     setAuthTab('login');
     setSuccessMsg(`Account registered successfully in MongoDB Atlas for ${newEmail}. You can sign in.`);
   };
@@ -259,7 +240,7 @@ export const LoginView: React.FC = () => {
                       required
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="e.g. EMP001 or name@company.com"
+                      placeholder="e.g. employee ID or name@company.com"
                       className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all shadow-xs"
                     />
                   </div>
@@ -440,94 +421,9 @@ export const LoginView: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* Quick Demo Role Cards matching Section 14 */}
-          <div className="mt-8 border-t border-slate-200/70 pt-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-900">
-                1-Click Quick Demo Portals
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Instant access
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {/* Admin Card */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('admin@company.com')}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 hover:bg-slate-50/70 transition-all cursor-pointer shadow-xs group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                      Rajesh Sharma
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Admin · Total System Surveillance & Settings
-                    </div>
-                  </div>
-                </div>
-                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
-                  Admin
-                </span>
-              </button>
-
-              {/* Manager Card */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('kumar.verma@company.com')}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 hover:bg-slate-50/70 transition-all cursor-pointer shadow-xs group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                    <UserCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                      Kumar Verma
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Manager · Engineering Team & Smart Leave Approvals
-                    </div>
-                  </div>
-                </div>
-                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">
-                  Manager
-                </span>
-              </button>
-
-              {/* Employee Card */}
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('john.doe@company.com')}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 hover:bg-slate-50/70 transition-all cursor-pointer shadow-xs group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
-                    <UserIcon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                      John Doe (EMP001)
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Employee · Mark Attendance, Shifts & Leave Requests
-                    </div>
-                  </div>
-                </div>
-                <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200">
-                  Employee
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
+
 
       <ForgotPasswordModal isOpen={showForgotModal} onClose={() => setShowForgotModal(false)} />
       

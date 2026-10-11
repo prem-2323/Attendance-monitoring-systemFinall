@@ -30,7 +30,7 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
     d.setDate(d.getDate() + 2);
     return d.toISOString().split('T')[0];
   });
-  const [reason, setReason] = useState('Personal family event in native town.');
+  const [reason, setReason] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -42,7 +42,7 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
     earnedRemaining: 15,
   });
 
-  const empId = currentUser?.employeeId || 'EMP001';
+  const empId = currentUser?.employeeId || '';
 
   useEffect(() => {
     if (!empId) return;

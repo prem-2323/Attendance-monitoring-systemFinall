@@ -18,7 +18,7 @@ export const EmployeeSmartHours: React.FC = () => {
   const { currentUser, todayAttendance } = useApp();
   const [isLoading, setIsLoading] = useState(true);
 
-  const empId = currentUser?.employeeId || 'EMP001';
+  const empId = currentUser?.employeeId || '';
 
   // Find employee's today record check-in
   const todayRec = todayAttendance.find((a) => a.employeeId === empId);
@@ -26,20 +26,24 @@ export const EmployeeSmartHours: React.FC = () => {
 
   // Interactive Simulator parameters
   const [simulatedCheckIn, setSimulatedCheckIn] = useState<string>(initialCheckIn);
-  const [simulatedCurrentTime, setSimulatedCurrentTime] = useState<string>('04:30 PM');
+  const [simulatedCurrentTime, setSimulatedCurrentTime] = useState<string>('05:00 PM');
 
   const [metrics, setMetrics] = useState<SmartHoursResponse>({
     employeeId: empId,
-    checkInTime: '09:00 AM',
-    expectedCheckoutTime: '05:00 PM',
-    workedTime: '7h 30m',
-    remainingTime: '30 minutes',
-    completionPercent: 94,
+    checkInTime: todayRec?.checkIn || '--',
+    expectedCheckoutTime: '--',
+    workedTime: todayRec?.hoursWorked || '--',
+    remainingTime: todayRec?.checkIn ? 'In Progress' : '8h 00m',
+    completionPercent: 0,
     targetHoursPerDay: 8,
-    smartPolicy: 'Flexible 3-hour window with 8 full working hours enforcement',
+    smartPolicy: 'Flexible shift window with 8 full working hours enforcement',
   });
 
   const fetchShiftCalculation = async (checkIn: string, currTime?: string) => {
+    if (!empId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const res = await employeeApi.getSmartHours(empId, checkIn, currTime);
       if (res) {

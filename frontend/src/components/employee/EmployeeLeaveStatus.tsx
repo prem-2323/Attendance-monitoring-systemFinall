@@ -22,9 +22,13 @@ export const EmployeeLeaveStatus: React.FC<EmployeeLeaveStatusProps> = ({ onAppl
   const [isLoading, setIsLoading] = useState(true);
   const [liveLeaves, setLiveLeaves] = useState<LeaveRequest[] | null>(null);
 
-  const empId = currentUser?.employeeId || 'EMP001';
+  const empId = currentUser?.employeeId || '';
 
   const fetchLeaves = async () => {
+    if (!empId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await employeeApi.getLeaveRequests(empId);

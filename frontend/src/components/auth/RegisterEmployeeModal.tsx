@@ -9,6 +9,7 @@ import {
   Video,
   VideoOff,
   RefreshCw,
+  ScanFace,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
@@ -34,7 +35,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   // Available managers from live user database
   const availableManagers = users.filter((u) => u.role === 'manager');
   const [managerName, setManagerName] = useState(
-    availableManagers[0]?.name || 'Kumar Verma'
+    availableManagers[0]?.name || ''
   );
 
   const [password, setPassword] = useState('');
@@ -258,7 +259,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
                     </option>
                   ))
                 ) : (
-                  <option value="Kumar Verma">Kumar Verma (Engineering)</option>
+                  <option value="">No managers enrolled</option>
                 )}
               </select>
             </div>
@@ -302,12 +303,8 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
             <div className="relative mx-auto flex h-40 w-56 flex-col items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-slate-900 text-white shadow-inner">
               {faceCaptured ? (
                 <div className="flex flex-col items-center text-center p-2">
-                  <div className="relative h-16 w-16 rounded-full border-2 border-emerald-400 p-0.5 mb-2 overflow-hidden shadow-lg">
-                    <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80"
-                      alt="face preview"
-                      className="h-full w-full object-cover rounded-full"
-                    />
+                  <div className="relative h-16 w-16 rounded-full border-2 border-emerald-400 p-0.5 mb-2 overflow-hidden shadow-lg bg-slate-800 flex items-center justify-center">
+                    <ScanFace className="h-10 w-10 text-emerald-400" />
                     <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-full animate-ping opacity-25" />
                   </div>
                   <span className="text-xs text-emerald-400 font-bold">128-D Vector Enrolled</span>

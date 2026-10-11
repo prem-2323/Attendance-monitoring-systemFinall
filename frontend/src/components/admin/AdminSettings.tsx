@@ -217,7 +217,7 @@ export const AdminSettings: React.FC = () => {
           <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
             <h3 className="text-sm font-bold text-slate-900">Reset System Data</h3>
             <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-              Reset entire database to initial mock state? All attendance records, enrolled biometric vectors, and new staff records will be restored to default.
+              Reset entire database to clean state? All attendance records, audit logs, and temporary leaves will be cleared.
             </p>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button

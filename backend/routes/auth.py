@@ -71,7 +71,7 @@ async def register_admin(payload: AdminRegisterRequest):
         "active": True,
         "joinDate": datetime.now().strftime("%Y-%m-%d"),
         "faceRegistered": False,
-        "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80",
+        "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
         "created_at": datetime.now().isoformat(),
     }
@@ -125,7 +125,7 @@ async def register_manager(payload: ManagerRegisterRequest):
         "active": True,
         "joinDate": datetime.now().strftime("%Y-%m-%d"),
         "faceRegistered": False,
-        "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80",
+        "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
         "created_at": datetime.now().isoformat(),
     }
@@ -176,13 +176,13 @@ async def register_employee(payload: EmployeeRegisterRequest):
         "department": payload.department or "Engineering",
         "role": "employee",
         "managerId": payload.managerId,
-        "managerName": payload.managerName or "Kumar Verma",
+        "managerName": payload.managerName or "",
         "title": "Engineer",
         "active": True,
         "joinDate": datetime.now().strftime("%Y-%m-%d"),
         "faceRegistered": bool(payload.faceRegistered),
         "faceVector": payload.faceVector or ("VEC-128-ENROLLED-PASSIVE" if payload.faceRegistered else None),
-        "avatarUrl": payload.avatarUrl or "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&h=256&q=80",
+        "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
         "created_at": datetime.now().isoformat(),
     }

@@ -3,11 +3,18 @@ Main FastAPI Application Entry Point.
 Attendance Monitoring System — Smart Approval Based Face Attendance.
 """
 import logging
+import sys
+from pathlib import Path
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import os
+
+# Ensure project root directory is in sys.path
+_ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
 from backend.config import API_TITLE, API_DESCRIPTION, API_VERSION
 from backend.routes import employee as employee_router
@@ -110,12 +117,13 @@ async def api_info():
         "version": API_VERSION,
         "docs": "/docs",
         "endpoints": {
-            "register_employee": "POST /employee/register",
-            "list_employees": "GET /employee/",
-            "verify_attendance": "POST /attendance/verify",
-            "get_attendance": "GET /attendance/{employee_id}",
-            "all_attendance": "GET /attendance/",
-            "get_result": "GET /attendance/result/{attendance_id}",
-            "approve_reject": "POST /attendance/approval/{attendance_id}",
+            "authentication": "/api/auth",
+            "admin_management": "/api/admin",
+            "manager_portal": "/api/manager",
+            "employee_portal": "/api/employee",
+            "reports_analytics": "/api/reports",
+            "biometric_attendance": "/attendance/verify",
+            "face_registration": "/employee/register",
         },
     }
+

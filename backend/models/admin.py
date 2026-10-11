@@ -11,7 +11,7 @@ class AddEmployeeAdminRequest(BaseModel):
     email: str = Field(..., min_length=3)
     phone: Optional[str] = "+91 "
     department: Optional[str] = "Engineering"
-    managerName: Optional[str] = "Kumar Verma"
+    managerName: Optional[str] = None
     role: Optional[str] = "employee"
     avatarUrl: Optional[str] = None
     faceRegistered: Optional[bool] = False

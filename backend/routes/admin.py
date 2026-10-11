@@ -217,9 +217,9 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             "email": payload.email.strip().lower(),
             "phone": payload.phone or "+91 ",
             "department": payload.department or "Engineering",
-            "managerName": payload.managerName or "Kumar Verma",
+            "managerName": payload.managerName or "",
             "role": payload.role or "employee",
-            "avatarUrl": payload.avatarUrl or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80",
+            "avatarUrl": payload.avatarUrl or "",
             "faceRegistered": payload.faceRegistered or False,
             "faceVector": payload.faceVector or (f"face_vec_{int(datetime.now().timestamp())}_128d" if payload.faceRegistered else None),
             "joinDate": datetime.now().strftime("%Y-%m-%d"),
@@ -335,7 +335,7 @@ async def create_manager(payload: AddManagerAdminRequest):
             "department": payload.department or "Engineering",
             "role": "manager",
             "title": payload.title or "Department Operations Director",
-            "avatarUrl": payload.avatarUrl or "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80",
+            "avatarUrl": payload.avatarUrl or "",
             "faceRegistered": payload.faceRegistered if payload.faceRegistered is not None else True,
             "joinDate": datetime.now().strftime("%Y-%m-%d"),
             "active": True,
@@ -616,23 +616,25 @@ async def update_smart_hours_settings(payload: SmartHoursUpdateRequest):
 @router.post("/reset")
 async def reset_database():
     """
-    Resets MongoDB Atlas collections and reseeds baseline enterprise dataset.
+    Resets MongoDB Atlas collections to clean state with default enterprise system settings.
     """
     try:
+        from backend.database import leave_requests_collection
         if users_collection is not None:
             users_collection.delete_many({})
             seed_initial_users()
         if attendance_collection is not None:
             attendance_collection.delete_many({})
-            seed_initial_attendance()
         if approval_audits_collection is not None:
             approval_audits_collection.delete_many({})
-            seed_initial_audits()
+        if leave_requests_collection is not None:
+            leave_requests_collection.delete_many({})
         if settings_collection is not None:
             settings_collection.delete_many({})
             seed_initial_settings()
 
-        return {"success": True, "message": "MongoDB Atlas successfully reset and re-seeded with enterprise defaults."}
+        return {"success": True, "message": "MongoDB Atlas successfully reset to clean database with enterprise default settings."}
     except Exception as e:
         logger.exception("Failed to reset database")
         raise HTTPException(status_code=500, detail=str(e))
+

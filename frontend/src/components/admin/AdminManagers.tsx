@@ -13,9 +13,9 @@ export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManag
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState(`MGR00${users.filter((u) => u.role === 'manager').length + 1}`);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+91 98401 ');
+  const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');
-  const [title, setTitle] = useState('Engineering Manager');
+  const [title, setTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -89,6 +89,12 @@ export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManag
       {/* Managers Cards Grid */}
       {isLoading ? (
         <SkeletonRosterGrid count={3} />
+      ) : managers.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-xs">
+          <Users className="mx-auto h-10 w-10 text-slate-300" />
+          <h3 className="mt-3 text-sm font-semibold text-slate-900">No managers found</h3>
+          <p className="mt-1 text-xs text-slate-400">Enrolled department managers will appear here.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {managers.map((mgr) => {
@@ -104,11 +110,17 @@ export const AdminManagers: React.FC<AdminManagersProps> = ({ onNavigateAddManag
               <div>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={mgr.avatarUrl}
-                      alt={mgr.name}
-                      className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
-                    />
+                    {mgr.avatarUrl ? (
+                      <img
+                        src={mgr.avatarUrl}
+                        alt={mgr.name}
+                        className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm ring-2 ring-slate-100">
+                        {mgr.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm">{mgr.name}</h3>
                       <div className="text-[11px] font-medium text-slate-500">{mgr.employeeId}</div>

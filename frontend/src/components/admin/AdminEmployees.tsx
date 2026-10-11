@@ -125,8 +125,11 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none"
           >
             <option value="All">All Departments</option>
-            <option value="Engineering">Engineering</option>
-            <option value="Product & Operations">Product & Operations</option>
+            {Array.from(new Set(employeeList.map((e) => e.department).filter(Boolean))).map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -137,8 +140,11 @@ export const AdminEmployees: React.FC<AdminEmployeesProps> = ({ onNavigateAddEmp
             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 px-3.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none"
           >
             <option value="All">All Managers</option>
-            <option value="Kumar Verma">Kumar Verma</option>
-            <option value="Priya Sundaram">Priya Sundaram</option>
+            {Array.from(new Set(users.filter((u) => u.role === 'manager').map((m) => m.name).filter(Boolean))).map((mgr) => (
+              <option key={mgr} value={mgr}>
+                {mgr}
+              </option>
+            ))}
           </select>
         </div>
       </div>

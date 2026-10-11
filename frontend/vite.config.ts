@@ -8,7 +8,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {
@@ -17,6 +17,20 @@ export default defineConfig(() => {
         '/api': {
           target: 'http://127.0.0.1:8000',
           changeOrigin: true,
+          secure: false,
+          configure: (proxy) => {
+            proxy.on('error', (err, _req, res) => {
+              if (res && 'writeHead' in res && !res.headersSent) {
+                res.writeHead(503, { 'Content-Type': 'application/json' });
+                res.end(
+                  JSON.stringify({
+                    error: 'Backend is starting up or temporarily unavailable.',
+                    detail: err.message,
+                  })
+                );
+              }
+            });
+          },
         },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
@@ -27,3 +41,4 @@ export default defineConfig(() => {
     },
   };
 });
+

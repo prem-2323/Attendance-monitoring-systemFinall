@@ -166,14 +166,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
             }}
             className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white py-1.5 pl-2 pr-3 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer"
           >
-            <img
-              src={
-                currentUser?.avatarUrl ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'
-              }
-              alt={currentUser?.name}
-              className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200"
-            />
+            {currentUser?.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt={currentUser?.name}
+                className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200"
+              />
+            ) : (
+              <div className="h-7 w-7 rounded-lg bg-slate-900 text-white font-bold text-[11px] flex items-center justify-center">
+                {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'}
+              </div>
+            )}
             <div className="hidden sm:block text-left">
               <div className="text-xs font-semibold text-slate-900 leading-tight">
                 {currentUser?.name || 'Authorized User'}
@@ -207,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
                   className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Reset Demo Database</span>
+                  <span>Reset System Data</span>
                 </button>
 
                 <button

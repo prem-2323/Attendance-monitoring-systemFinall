@@ -503,7 +503,7 @@ function EmbeddedEmployeeForm({ onClose, onRegisteredSuccess }: { onClose: () =>
   const [phone, setPhone] = useState('+91 ');
   const [department, setDepartment] = useState('Engineering');
   const availableManagers = users.filter((u) => u.role === 'manager');
-  const [managerName, setManagerName] = useState(availableManagers[0]?.name || 'Kumar Verma');
+  const [managerName, setManagerName] = useState(availableManagers[0]?.name || '');
   const [autoLogin, setAutoLogin] = useState(true);
   const [faceCaptured, setFaceCaptured] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);

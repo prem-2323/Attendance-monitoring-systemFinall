@@ -21,12 +21,13 @@ interface AdminAddEmployeeProps {
 export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, onSuccess }) => {
   const { addEmployee, users } = useApp();
 
+  const availableManagers = users.filter((u) => u.role === 'manager');
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState(`EMP00${users.length + 1}`);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+91 9');
+  const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');
-  const [managerName, setManagerName] = useState('Kumar Verma');
+  const [managerName, setManagerName] = useState(availableManagers[0]?.name || '');
   const [role, setRole] = useState<UserRole>('employee');
 
   // Camera & Face Registration State
@@ -52,8 +53,8 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
           }
         }
       } catch (err) {
-        console.warn('Real webcam not accessible or permission denied. Fallback active.', err);
-        setCameraError('Webcam hardware unavailable or denied. Using simulation camera feed.');
+        console.warn('Real webcam not accessible or permission denied.', err);
+        setCameraError('Webcam hardware unavailable or denied.');
       }
     };
 
@@ -81,10 +82,8 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
             setCapturedPhotoUrl(canvas.toDataURL('image/jpeg'));
           }
         } catch {
-          setCapturedPhotoUrl('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80');
+          // If canvas extraction fails, keep current state
         }
-      } else {
-        setCapturedPhotoUrl('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80');
       }
 
       setIsCapturing(false);
@@ -247,8 +246,15 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
                 onChange={(e) => setManagerName(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 shadow-xs"
               >
-                <option value="Kumar Verma">Kumar Verma (Engineering)</option>
-                <option value="Priya Sundaram">Priya Sundaram (Product & Ops)</option>
+                {availableManagers.length === 0 ? (
+                  <option value="">No managers enrolled</option>
+                ) : (
+                  availableManagers.map((mgr) => (
+                    <option key={mgr.id} value={mgr.name}>
+                      {mgr.name} ({mgr.department})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 

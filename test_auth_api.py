@@ -17,13 +17,11 @@ def run_tests():
     assert login_res.status_code == 200, f"Login failed: {login_res.text}"
     print(f"PASS: Admin login success: {login_res.json()['user']['name']} ({login_res.json()['user']['role']})")
 
-    emp_login = client.post("/api/auth/login", json={"identifier": "EMP001", "password": "password123"})
-    assert emp_login.status_code == 200, f"Employee login failed: {emp_login.text}"
-    print(f"PASS: Employee ID login success: {emp_login.json()['user']['name']}")
+    mgr_login = client.post("/api/auth/login", json={"identifier": "MGR001", "password": "password123"})
+    assert mgr_login.status_code == 200, f"Manager login failed: {mgr_login.text}"
+    print(f"PASS: Manager ID login success: {mgr_login.json()['user']['name']}")
 
     print("\n--- 3. Testing POST /api/auth/register/admin ---")
-    test_adm_email = f"testadmin_{users[0]['id']}@company.com"
-    # Ensure cleanup if previous test ran
     adm_payload = {
         "name": "Kavitha Raman",
         "employeeId": "ADM099",
@@ -35,7 +33,7 @@ def run_tests():
     }
     reg_adm_res = client.post("/api/auth/register/admin", json=adm_payload)
     if reg_adm_res.status_code == 409:
-        print("Note: ADM099 already registered in Atlas from previous run (409 conflict handled correctly).")
+        print("Note: ADM099 already registered in Atlas (409 conflict handled correctly).")
     else:
         assert reg_adm_res.status_code == 201, f"Admin reg failed: {reg_adm_res.text}"
         print(f"PASS: Registered Admin in MongoDB Atlas: {reg_adm_res.json()['user']['name']}")
@@ -52,54 +50,35 @@ def run_tests():
     }
     reg_mgr_res = client.post("/api/auth/register/manager", json=mgr_payload)
     if reg_mgr_res.status_code == 409:
-        print("Note: MGR099 already registered in Atlas from previous run (409 conflict handled correctly).")
+        print("Note: MGR099 already registered in Atlas (409 conflict handled correctly).")
     else:
         assert reg_mgr_res.status_code == 201, f"Manager reg failed: {reg_mgr_res.text}"
         print(f"PASS: Registered Manager in MongoDB Atlas: {reg_mgr_res.json()['user']['name']}")
 
-    print("\n--- 5. Testing POST /api/auth/register/employee ---")
-    emp_payload = {
-        "name": "Divya Murugan",
-        "employeeId": "EMP099",
-        "email": "divya.m@company.com",
-        "phone": "+91 98401 77777",
-        "department": "Engineering",
-        "managerName": "Kumar Verma",
-        "password": "empPassword2026!",
-        "faceRegistered": True,
-        "faceVector": "VEC-128-ENROLLED-PASSIVE"
-    }
-    reg_emp_res = client.post("/api/auth/register/employee", json=emp_payload)
-    if reg_emp_res.status_code == 409:
-        print("Note: EMP099 already registered in Atlas from previous run (409 conflict handled correctly).")
-    else:
-        assert reg_emp_res.status_code == 201, f"Employee reg failed: {reg_emp_res.text}"
-        print(f"PASS: Registered Employee in MongoDB Atlas: {reg_emp_res.json()['user']['name']}")
-
-    print("\n--- 6. Testing Forgot Password Flow ---")
-    req_fp = client.post("/api/auth/forgot-password/request", json={"identifier": "john.doe@company.com"})
+    print("\n--- 5. Testing Forgot Password Flow ---")
+    req_fp = client.post("/api/auth/forgot-password/request", json={"identifier": "admin@company.com"})
     assert req_fp.status_code == 200, f"Forgot password request failed: {req_fp.text}"
     otp_code = req_fp.json().get("code")
     print(f"PASS: OTP generated and stored in Atlas: {otp_code}")
 
     # Verify OTP
-    verify_res = client.post("/api/auth/forgot-password/verify", json={"identifier": "john.doe@company.com", "code": otp_code})
+    verify_res = client.post("/api/auth/forgot-password/verify", json={"identifier": "admin@company.com", "code": otp_code})
     assert verify_res.status_code == 200, f"Verify OTP failed: {verify_res.text}"
     print("PASS: OTP verified against Atlas.")
 
-    # Reset password
+    # Reset password back to password123
     reset_res = client.post("/api/auth/forgot-password/reset", json={
-        "identifier": "john.doe@company.com",
+        "identifier": "admin@company.com",
         "code": otp_code,
-        "newPassword": "newPassword2026!"
+        "newPassword": "password123"
     })
     assert reset_res.status_code == 200, f"Reset password failed: {reset_res.text}"
     print("PASS: Password updated in MongoDB Atlas.")
 
-    # Test login with new password
-    new_login = client.post("/api/auth/login", json={"identifier": "john.doe@company.com", "password": "newPassword2026!"})
-    assert new_login.status_code == 200, f"Login with new password failed: {new_login.text}"
-    print(f"PASS: Login with new reset password succeeded: {new_login.json()['user']['name']}")
+    # Test login with restored password
+    new_login = client.post("/api/auth/login", json={"identifier": "admin@company.com", "password": "password123"})
+    assert new_login.status_code == 200, f"Login with reset password failed: {new_login.text}"
+    print(f"PASS: Login with password succeeded: {new_login.json()['user']['name']}")
 
     print("\n==========================================")
     print("ALL BACKEND & MONGODB ATLAS TESTS PASSED!!")

@@ -262,11 +262,11 @@ async def review_leave_request(payload: ReviewLeavePayload):
         if approval_audits_collection is not None:
             audit_entry = {
                 "id": f"audit-{int(now.timestamp() * 1000)}",
-                "employeeId": leave_doc.get("employeeId", "EMP001"),
+                "employeeId": leave_doc.get("employeeId", ""),
                 "employeeName": leave_doc.get("employeeName", "Employee"),
                 "requestType": f"{leave_doc.get('leaveType', 'Leave')} ({leave_doc.get('daysCount', 1)} days: {leave_doc.get('fromDate')})",
                 "decision": payload.decision,
-                "managerId": payload.managerId or leave_doc.get("managerId", "user-mgr-1"),
+                "managerId": payload.managerId or leave_doc.get("managerId", ""),
                 "managerName": mgr_name,
                 "date": date_str,
                 "time": time_str,

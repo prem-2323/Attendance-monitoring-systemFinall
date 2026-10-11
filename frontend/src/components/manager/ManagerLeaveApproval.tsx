@@ -42,9 +42,13 @@ export const ManagerLeaveApproval: React.FC = () => {
   const [modalAnalysis, setModalAnalysis] = useState<EmployeeAttendanceAnalysis | null>(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
 
-  const managerId = currentUser?.id || currentUser?.employeeId || 'user-mgr-1';
+  const managerId = currentUser?.id || currentUser?.employeeId || '';
 
   const fetchTeamLeaves = async () => {
+    if (!managerId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await managerApi.getTeamLeaves(managerId);

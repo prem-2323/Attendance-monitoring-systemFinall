@@ -164,7 +164,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             {totalEmployeesCount}
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Across {Object.keys(liveStats?.departmentBreakdown || {}).length || 3} departments
+            Across {Object.keys(liveStats?.departmentBreakdown || {}).length || (new Set(users.map(u => u.department).filter(Boolean)).size || 1)} departments
           </div>
         </div>
 
@@ -229,7 +229,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </p>
             </div>
             <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-              Live Oct 10, 2026
+              Live {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
           </div>
 
@@ -310,7 +310,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
           <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3.5 border border-slate-100 text-xs">
             <span className="text-slate-600">
-              Campus Hardware Status: <strong>3 Office Scanners Online</strong>
+              Campus Hardware Status: <strong>Biometric Scanners Active</strong>
             </span>
             <button
               onClick={() => onNavigate('admin-attendance-today')}
@@ -389,23 +389,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {recentActivities.map((act, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-slate-900">{act.employee}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${act.tagColor}`}>
-                      {act.activity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">{act.time}</td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-                      <Check className="h-3 w-3" />
-                      <span>Verified</span>
-                    </span>
+              {recentActivities.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                    No attendance activities recorded today yet.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                recentActivities.map((act, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-slate-900">{act.employee}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${act.tagColor}`}>
+                        {act.activity}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">{act.time}</td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                        <Check className="h-3 w-3" />
+                        <span>Verified</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

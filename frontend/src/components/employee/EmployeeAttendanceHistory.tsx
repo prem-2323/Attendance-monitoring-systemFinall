@@ -17,7 +17,16 @@ import { employeeApi } from '../../services/employeeApi';
 
 export const EmployeeAttendanceHistory: React.FC = () => {
   const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
-  const [selectedMonth, setSelectedMonth] = useState('October 2026');
+  const now = new Date();
+  const availableMonths = [0, 1, 2, 3].map((i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return {
+      label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      prefix: d.toISOString().slice(0, 7),
+    };
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState(availableMonths[0]?.label || '');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [liveRecords, setLiveRecords] = useState<AttendanceRecord[] | null>(null);
@@ -29,12 +38,17 @@ export const EmployeeAttendanceHistory: React.FC = () => {
     attendancePercentage: number;
   } | null>(null);
 
-  const empId = currentUser?.employeeId || 'EMP001';
+  const empId = currentUser?.employeeId || '';
 
   const fetchHistory = async () => {
+    if (!empId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      const monthPrefix = selectedMonth.includes('October') ? '2026-10' : '2026-09';
+      const matched = availableMonths.find((m) => m.label === selectedMonth);
+      const monthPrefix = matched ? matched.prefix : '';
       const res = await employeeApi.getAttendanceHistory(empId, statusFilter, monthPrefix);
       if (res && res.records) {
         setLiveRecords(res.records);
@@ -146,8 +160,11 @@ export const EmployeeAttendanceHistory: React.FC = () => {
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-xs focus:outline-none focus:border-blue-600 cursor-pointer"
           >
-            <option value="October 2026">October 2026</option>
-            <option value="September 2026">September 2026</option>
+            {availableMonths.map((m) => (
+              <option key={m.prefix} value={m.label}>
+                {m.label}
+              </option>
+            ))}
           </select>
           <button
             onClick={handleExportCSV}

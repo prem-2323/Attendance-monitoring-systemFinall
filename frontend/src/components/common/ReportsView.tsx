@@ -21,10 +21,13 @@ import { AttendanceRecord } from '../../types';
 export const ReportsView: React.FC = () => {
   const { allAttendance, users, officeLocation, refreshAttendance, refreshUsers } = useApp();
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const firstDayStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
   const [department, setDepartment] = useState('All');
   const [employeeFilter, setEmployeeFilter] = useState('All');
-  const [fromDate, setFromDate] = useState('2026-10-01');
-  const [toDate, setToDate] = useState('2026-10-10');
+  const [fromDate, setFromDate] = useState(firstDayStr);
+  const [toDate, setToDate] = useState(todayStr);
   const [statusFilter, setStatusFilter] = useState('All');
   const [reportGenerated, setReportGenerated] = useState(true);
   const [isLoading, setIsLoading] = useState(true);

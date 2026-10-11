@@ -132,7 +132,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
                 "livenessVerified": True,
-                "managerName": emp.get("managerName", "Kumar Verma"),
+                "managerName": emp.get("managerName", ""),
             }
 
             attendance_collection.update_one(
@@ -164,7 +164,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
                 "livenessVerified": True,
-                "managerName": emp.get("managerName", "Kumar Verma"),
+                "managerName": emp.get("managerName", ""),
             }
 
             attendance_collection.update_one(
@@ -290,8 +290,8 @@ async def apply_for_leave(payload: ApplyLeaveRequest):
             "reason": payload.reason,
             "status": "Pending",
             "requestedAt": now.strftime("%Y-%m-%d %H:%M"),
-            "managerId": emp.get("managerId", "user-mgr-1"),
-            "managerName": emp.get("managerName", "Kumar Verma"),
+            "managerId": emp.get("managerId", ""),
+            "managerName": emp.get("managerName", ""),
         }
 
         leave_requests_collection.insert_one(new_leave)

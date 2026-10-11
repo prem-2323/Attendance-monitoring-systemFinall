@@ -36,13 +36,26 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000" ^| findstr "LISTENING
 echo [*] Starting FastAPI Backend on http://127.0.0.1:8000 ...
 start "AMS Backend - FastAPI & MongoDB Atlas" cmd /k "cd /d "%~dp0" && .venv\Scripts\python.exe -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000"
 
-echo [*] Waiting 3 seconds for backend database connection...
-timeout /t 3 /nobreak >nul
+echo [*] Waiting for Backend & MongoDB Atlas connection to become ready...
+set /a attempts=0
+:WAIT_FOR_BACKEND
+timeout /t 1 /nobreak >nul
+set /a attempts+=1
+curl.exe -s http://127.0.0.1:8000/api >nul 2>&1
+if errorlevel 1 (
+    if %attempts% lss 20 (
+        goto WAIT_FOR_BACKEND
+    ) else (
+        echo [!] Backend took longer than expected to initialize. Proceeding anyway...
+    )
+) else (
+    echo [OK] Backend API is live and responding!
+)
 
 echo [*] Starting React Frontend on http://localhost:3000 ...
 start "AMS Frontend - React Vite" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 
-echo [*] Waiting 3 seconds for frontend dev server...
+echo [*] Waiting 3 seconds for Vite dev server...
 timeout /t 3 /nobreak >nul
 
 echo.

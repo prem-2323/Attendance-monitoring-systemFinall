@@ -26,9 +26,13 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
   const [isLoading, setIsLoading] = useState(true);
   const [liveDashboard, setLiveDashboard] = useState<ManagerDashboardData | null>(null);
 
-  const managerId = currentUser?.id || currentUser?.employeeId || 'user-mgr-1';
+  const managerId = currentUser?.id || currentUser?.employeeId || '';
 
   const fetchDashboard = async () => {
+    if (!managerId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const data = await managerApi.getDashboard(managerId);
@@ -248,9 +252,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right text-xs text-slate-500">
-                          {rec.checkIn?.startsWith('12:') ? (
-                            <span className="text-blue-600 font-semibold">Flex: Target 08:00 PM</span>
-                          ) : rec.status === 'Present' ? (
+                          {rec.status === 'Present' || rec.status === 'Working' ? (
                             <span className="text-emerald-600 font-semibold">On Track (8h)</span>
                           ) : (
                             <span>Standard Shift</span>

@@ -9,13 +9,8 @@ import {
   SmartHoursConfig,
   AttendanceStatus,
 } from '../types';
-import {
-  DEFAULT_OFFICE,
-  INITIAL_TODAY_ATTENDANCE,
-  INITIAL_HISTORICAL_ATTENDANCE,
-  INITIAL_LEAVE_REQUESTS,
-  INITIAL_APPROVAL_AUDIT,
-} from '../data/mockData';
+import { DEFAULT_OFFICE } from '../data/mockData';
+
 import { authApi } from '../services/authApi';
 import { adminApi } from '../services/adminApi';
 import { employeeApi } from '../services/employeeApi';
@@ -97,20 +92,48 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Legacy storage keys to purge on boot to remove previous mock data from browser cache
+const LEGACY_STORAGE_KEYS = [
+  'smart_attend_user_v1',
+  'smart_attend_users_v1',
+  'smart_attend_today_v1',
+  'smart_attend_history_v1',
+  'smart_attend_leaves_v1',
+  'smart_attend_audit_v1',
+  'smart_attend_office_v1',
+];
+
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    LEGACY_STORAGE_KEYS.forEach((k) => window.localStorage.removeItem(k));
+  }
+} catch {
+  // Ignore in restricted environments
+}
+
 const STORAGE_KEYS = {
-  CURRENT_USER: 'smart_attend_user_v1',
-  USERS: 'smart_attend_users_v1',
-  TODAY_ATT: 'smart_attend_today_v1',
-  HIST_ATT: 'smart_attend_history_v1',
-  LEAVES: 'smart_attend_leaves_v1',
-  AUDIT: 'smart_attend_audit_v1',
-  OFFICE: 'smart_attend_office_v1',
+  CURRENT_USER: 'smart_attend_user_v2',
+  USERS: 'smart_attend_users_v2',
+  TODAY_ATT: 'smart_attend_today_v2',
+  HIST_ATT: 'smart_attend_history_v2',
+  LEAVES: 'smart_attend_leaves_v2',
+  AUDIT: 'smart_attend_audit_v2',
+  OFFICE: 'smart_attend_office_v2',
 };
+
+const MOCK_EMP_IDS = new Set(['EMP001', 'EMP002', 'EMP003', 'EMP099']);
+const isRealRecord = (empId?: string) => !empId || !MOCK_EMP_IDS.has(empId.trim().toUpperCase());
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed: User[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((u) => isRealRecord(u.employeeId)) : [];
+    } catch {
+      return [];
+    }
   });
 
   // Fetch live users, attendance, audits, and settings directly from MongoDB Atlas on mount
@@ -118,8 +141,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Live Users
     authApi.getAllUsers()
       .then((atlasUsers) => {
-        if (atlasUsers && atlasUsers.length > 0) {
-          setUsers(atlasUsers);
+        if (Array.isArray(atlasUsers)) {
+          setUsers(atlasUsers.filter((u) => isRealRecord(u.employeeId)));
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live Atlas users:', err));
@@ -127,8 +150,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Live Today Attendance
     adminApi.getAttendance({ mode: 'today' })
       .then((todayRecs) => {
-        if (todayRecs && todayRecs.length > 0) {
-          setTodayAttendance(todayRecs);
+        if (Array.isArray(todayRecs)) {
+          setTodayAttendance(todayRecs.filter((a) => isRealRecord(a.employeeId)));
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live today attendance:', err));
@@ -136,8 +159,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 3. Live Historical Attendance
     adminApi.getAttendance({ mode: 'history' })
       .then((histRecs) => {
-        if (histRecs && histRecs.length > 0) {
-          setHistoricalAttendance(histRecs);
+        if (Array.isArray(histRecs)) {
+          setHistoricalAttendance(histRecs.filter((a) => isRealRecord(a.employeeId)));
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live historical attendance:', err));
@@ -145,8 +168,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 4. Live Approval Audits
     adminApi.getApprovalAudits()
       .then((audits) => {
-        if (audits && audits.length > 0) {
-          setApprovalAudits(audits);
+        if (Array.isArray(audits)) {
+          setApprovalAudits(audits.filter((a) => isRealRecord(a.employeeId)));
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live audits:', err));
@@ -166,8 +189,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 6. Live Leave Requests from MongoDB Atlas
     employeeApi.getLeaveRequests('all')
       .then((data) => {
-        if (data && data.leaveRequests && data.leaveRequests.length > 0) {
-          setLeaveRequests(data.leaveRequests);
+        if (Array.isArray(data?.leaveRequests)) {
+          setLeaveRequests(data.leaveRequests.filter((l) => isRealRecord(l.employeeId)));
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live leave requests:', err));
@@ -176,8 +199,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshUsers = async () => {
     try {
       const liveUsers = await authApi.getAllUsers();
-      if (liveUsers && liveUsers.length > 0) {
-        setUsers(liveUsers);
+      if (Array.isArray(liveUsers)) {
+        setUsers(liveUsers.filter((u) => isRealRecord(u.employeeId)));
       }
     } catch (err) {
       console.warn('[AppContext] Failed to refresh users from Atlas:', err);
@@ -190,8 +213,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminApi.getAttendance({ mode: 'today' }),
         adminApi.getAttendance({ mode: 'history' }),
       ]);
-      if (today && today.length > 0) setTodayAttendance(today);
-      if (history && history.length > 0) setHistoricalAttendance(history);
+      if (Array.isArray(today)) setTodayAttendance(today.filter((a) => isRealRecord(a.employeeId)));
+      if (Array.isArray(history)) setHistoricalAttendance(history.filter((a) => isRealRecord(a.employeeId)));
     } catch (err) {
       console.warn('[AppContext] Failed to refresh attendance:', err);
     }
@@ -200,7 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshApprovalAudits = async () => {
     try {
       const audits = await adminApi.getApprovalAudits();
-      if (audits && audits.length > 0) setApprovalAudits(audits);
+      if (Array.isArray(audits)) setApprovalAudits(audits.filter((a) => isRealRecord(a.employeeId)));
     } catch (err) {
       console.warn('[AppContext] Failed to refresh audits:', err);
     }
@@ -209,8 +232,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshLeaveRequests = async () => {
     try {
       const data = await employeeApi.getLeaveRequests('all');
-      if (data && data.leaveRequests && data.leaveRequests.length > 0) {
-        setLeaveRequests(data.leaveRequests);
+      if (Array.isArray(data?.leaveRequests)) {
+        setLeaveRequests(data.leaveRequests.filter((l) => isRealRecord(l.employeeId)));
       }
     } catch (err) {
       console.warn('[AppContext] Failed to refresh leave requests:', err);
@@ -231,33 +254,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const u = JSON.parse(saved);
+        if (u && isRealRecord(u.employeeId)) {
+          return u;
+        }
       } catch {
         return null;
       }
     }
-    // Default to admin on first load or fallback
     return null;
   });
 
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.TODAY_ATT);
-    return saved ? JSON.parse(saved) : INITIAL_TODAY_ATTENDANCE;
+    if (!saved) return [];
+    try {
+      const parsed: AttendanceRecord[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((a) => isRealRecord(a.employeeId)) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [historicalAttendance, setHistoricalAttendance] = useState<AttendanceRecord[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.HIST_ATT);
-    return saved ? JSON.parse(saved) : INITIAL_HISTORICAL_ATTENDANCE;
+    if (!saved) return [];
+    try {
+      const parsed: AttendanceRecord[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((a) => isRealRecord(a.employeeId)) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.LEAVES);
-    return saved ? JSON.parse(saved) : INITIAL_LEAVE_REQUESTS;
+    if (!saved) return [];
+    try {
+      const parsed: LeaveRequest[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((l) => isRealRecord(l.employeeId)) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [approvalAudits, setApprovalAudits] = useState<ApprovalAudit[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.AUDIT);
-    return saved ? JSON.parse(saved) : INITIAL_APPROVAL_AUDIT;
+    if (!saved) return [];
+    try {
+      const parsed: ApprovalAudit[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed.filter((a) => isRealRecord(a.employeeId)) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [officeLocation, setOfficeLocation] = useState<OfficeLocation>(() => {
@@ -272,24 +321,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     flexibleWindowMinutes: 180,
   });
 
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: 'notif-1',
-      title: 'Smart Biometric Update',
-      message: 'Office geofencing threshold verified at 150m radius.',
-      time: '10 min ago',
-      type: 'info',
-      read: false,
-    },
-    {
-      id: 'notif-2',
-      title: 'New Leave Request',
-      message: 'John Doe requested Casual Leave for Oct 15-16.',
-      time: '1 hour ago',
-      type: 'warning',
-      read: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
 
   // Persist to local storage
   useEffect(() => {
@@ -408,19 +441,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return created;
     } catch (err: any) {
-      console.warn('[AppContext] Backend createEmployee failed, using local fallback:', err);
-      const newId = `user-emp-${Date.now().toString().slice(-4)}`;
-      const newEmp: User = {
-        ...employeeData,
-        id: newId,
-        joinDate: '2026-10-10',
-        active: true,
-        avatarUrl:
-          employeeData.avatarUrl ||
-          `https://images.unsplash.com/photo-${1534528741775 + (users.length % 5)}?auto=format&fit=crop&w=256&h=256&q=80`,
-      };
-      setUsers((prev) => [newEmp, ...prev]);
-      return newEmp;
+      console.warn('[AppContext] Backend createEmployee failed:', err);
+      throw new Error(err?.message || 'Failed to register employee in MongoDB Atlas');
     }
   };
 
@@ -452,23 +474,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUsers((prev) => [created, ...prev.filter((u) => u.employeeId !== created.employeeId)]);
       return created;
     } catch (err: any) {
-      console.warn('[AppContext] Backend createManager failed, using local fallback:', err);
-      const newId = `user-mgr-${Date.now().toString().slice(-4)}`;
-      const newMgr: User = {
-        ...managerData,
-        id: newId,
-        role: 'manager',
-        joinDate: '2026-10-10',
-        active: true,
-        faceRegistered: managerData.faceRegistered ?? false,
-        avatarUrl:
-          managerData.avatarUrl ||
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-      };
-      setUsers((prev) => [newMgr, ...prev]);
-      return newMgr;
+      console.warn('[AppContext] Backend createManager failed:', err);
+      throw new Error(err?.message || 'Failed to register manager in MongoDB Atlas');
     }
   };
+
 
   const overrideAttendanceRecord = async (params: {
     employeeId: string;
@@ -505,12 +515,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...adminData,
       id: newId,
       role: 'admin',
-      joinDate: '2026-10-10',
+      joinDate: new Date().toISOString().split('T')[0],
       active: true,
       faceRegistered: adminData.faceRegistered ?? false,
-      avatarUrl:
-        adminData.avatarUrl ||
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80',
+      avatarUrl: adminData.avatarUrl || '',
     };
     setUsers((prev) => [newAdmin, ...prev]);
 
@@ -612,98 +620,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           record: res.record,
         };
       }
+      return {
+        success: false,
+        message: res?.message || 'Attendance verification failed.',
+      };
     } catch (err: any) {
-      console.warn('[AppContext] Backend markAttendance failed, using local fallback:', err);
+      console.warn('[AppContext] Backend markAttendance error:', err);
+      return {
+        success: false,
+        message: err?.message || 'Attendance verification failed.',
+      };
     }
-
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
-    const formattedTime = `${String(formattedHours).padStart(2, '0')}:${String(minutes).padStart(
-      2,
-      '0'
-    )} ${ampm}`;
-
-    // Status evaluation: If checkin is after 09:15 AM
-    let newStatus: AttendanceStatus = 'Present';
-    if (!isCheckOut) {
-      if (hours > 9 || (hours === 9 && minutes > 15)) {
-        newStatus = 'Late';
-      }
-    }
-
-    let updatedRecord: AttendanceRecord;
-
-    setTodayAttendance((prev) => {
-      const existingIndex = prev.findIndex((r) => r.employeeId === employeeId);
-      if (existingIndex >= 0) {
-        const existing = prev[existingIndex];
-        if (isCheckOut) {
-          updatedRecord = {
-            ...existing,
-            checkOut: formattedTime,
-            hoursWorked: existing.checkIn ? '8h 15m' : '4h 00m',
-            status: existing.status === 'Absent' ? 'Present' : existing.status,
-            withinRadius: true,
-            distanceMeters,
-            livenessVerified: true,
-          };
-        } else {
-          updatedRecord = {
-            ...existing,
-            checkIn: formattedTime,
-            status: newStatus,
-            withinRadius: true,
-            distanceMeters,
-            livenessVerified: true,
-          };
-        }
-        const copy = [...prev];
-        copy[existingIndex] = updatedRecord;
-        return copy;
-      } else {
-        updatedRecord = {
-          id: `att-today-${Date.now()}`,
-          employeeId: emp.employeeId,
-          employeeName: emp.name,
-          department: emp.department,
-          date: '2026-10-10',
-          checkIn: formattedTime,
-          status: newStatus,
-          verifiedBy: 'Face + GPS',
-          locationName: officeLocation.name,
-          distanceMeters: Math.round(distanceMeters),
-          withinRadius: true,
-          livenessVerified: true,
-          managerName: emp.managerName,
-        };
-        return [updatedRecord, ...prev];
-      }
-    });
-
-    setNotifications((prev) => [
-      {
-        id: `notif-${Date.now()}`,
-        title: isCheckOut ? 'Check-out Logged' : 'Attendance Verified',
-        message: `${emp.name} has ${isCheckOut ? 'checked out' : 'checked in'} successfully via Face + GPS (${Math.round(
-          distanceMeters
-        )}m).`,
-        time: 'Just now',
-        type: 'success',
-        read: false,
-      },
-      ...prev,
-    ]);
-
-    return {
-      success: true,
-      message: isCheckOut
-        ? `Check-out recorded at ${formattedTime}!`
-        : `Attendance marked successfully at ${formattedTime}! Status: ${newStatus}`,
-      record: updatedRecord!,
-    };
   };
 
   const applyLeave = async ({
@@ -747,43 +674,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return res.leaveRequest;
       }
+      throw new Error('Failed to submit leave request to MongoDB Atlas');
     } catch (err: any) {
-      console.warn('[AppContext] Backend applyLeave failed, using local fallback:', err);
+      console.warn('[AppContext] Backend applyLeave failed:', err);
+      throw new Error(err?.message || 'Failed to submit leave request to MongoDB Atlas');
     }
-
-    const newLeave: LeaveRequest = {
-      id: `leave-${Date.now()}`,
-      employeeId,
-      employeeName: emp?.name || 'Employee',
-      employeeEmail: emp?.email || 'employee@company.com',
-      department: emp?.department || 'Engineering',
-      leaveType,
-      fromDate,
-      toDate,
-      daysCount: Math.max(1, Math.round((new Date(toDate).getTime() - new Date(fromDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 || 1),
-      reason,
-      status: 'Pending',
-      requestedAt: '2026-10-10 10:15',
-      managerId: emp?.managerId || 'user-mgr-1',
-      managerName: emp?.managerName || 'Kumar Verma',
-    };
-
-    setLeaveRequests((prev) => [newLeave, ...prev]);
-
-    setNotifications((prev) => [
-      {
-        id: `notif-${Date.now()}`,
-        title: 'New Leave Request Submitted',
-        message: `${emp?.name} requested ${leaveType} (${fromDate} to ${toDate}). Waiting for manager approval.`,
-        time: 'Just now',
-        type: 'warning',
-        read: false,
-      },
-      ...prev,
-    ]);
-
-    return newLeave;
   };
+
 
   const reviewLeaveRequest = async (
     requestId: string,
@@ -832,12 +729,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setLeaveRequests((prev) =>
       prev.map((req) => {
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         if (req.id === requestId) {
           reviewedReq = {
             ...req,
             status: decision,
-            reviewedAt: '2026-10-10 10:30',
-            reviewRemarks: remarks || (decision === 'Approved' ? 'Approved by manager.' : 'Request declined due to schedule conflict.'),
+            reviewedAt: `${dateStr} ${timeStr}`,
+            reviewRemarks: remarks || (decision === 'Approved' ? 'Approved by manager.' : 'Request declined.'),
           };
           return reviewedReq;
         }
@@ -846,6 +746,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (reviewedReq) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       // Create Approval Audit entry immediately
       const newAudit: ApprovalAudit = {
         id: `audit-${Date.now()}`,
@@ -855,16 +758,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         decision,
         managerId: currentUser?.id || reviewedReq.managerId,
         managerName: currentUser?.name || reviewedReq.managerName,
-        date: '2026-10-10',
-        time: '10:30 AM',
+        date: dateStr,
+        time: timeStr,
         reason: reviewedReq.reason,
-        remarks: remarks || (decision === 'Approved' ? 'Smart Attendance history reviewed. Approved.' : 'Declined.'),
+        remarks: remarks || (decision === 'Approved' ? 'Leave reviewed and approved.' : 'Declined.'),
       };
 
       setApprovalAudits((prev) => [newAudit, ...prev]);
 
       // If approved and applies to today, update today's status to 'On Leave'
-      if (decision === 'Approved' && reviewedReq.fromDate <= '2026-10-10' && reviewedReq.toDate >= '2026-10-10') {
+      if (decision === 'Approved' && reviewedReq.fromDate <= dateStr && reviewedReq.toDate >= dateStr) {
         setTodayAttendance((prev) =>
           prev.map((rec) =>
             rec.employeeId === reviewedReq?.employeeId

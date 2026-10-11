@@ -27,12 +27,10 @@ export const AdminAddManager: React.FC<AdminAddManagerProps> = ({ onCancel, onSu
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState(`MGR00${nextMgrNum}`);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+91 98401 ');
+  const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('Engineering');
-  const [title, setTitle] = useState('Engineering Operations Director');
-  const [avatarUrl, setAvatarUrl] = useState(
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'
-  );
+  const [title, setTitle] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   // Selected subordinates to allocate
   const availableEmployees = users.filter((u) => u.role === 'employee');

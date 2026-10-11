@@ -11,9 +11,13 @@ export const ManagerEmployees: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [liveTeam, setLiveTeam] = useState<User[] | null>(null);
 
-  const managerId = currentUser?.id || currentUser?.employeeId || 'user-mgr-1';
+  const managerId = currentUser?.id || currentUser?.employeeId || '';
 
   const fetchTeam = async () => {
+    if (!managerId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const data = await managerApi.getTeamEmployees(managerId);
@@ -121,11 +125,17 @@ export const ManagerEmployees: React.FC = () => {
                 <div>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={emp.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'}
-                        alt={emp.name}
-                        className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
-                      />
+                      {emp.avatarUrl ? (
+                        <img
+                          src={emp.avatarUrl}
+                          alt={emp.name}
+                          className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm ring-2 ring-slate-100">
+                          {emp.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-bold text-slate-900 text-sm">{emp.name}</h3>
                         <div className="text-xs text-slate-400">{emp.employeeId}</div>
@@ -147,7 +157,7 @@ export const ManagerEmployees: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Joined: {emp.joinDate || '2026-10-10'}</span>
+                      <span>Joined: {emp.joinDate || '--'}</span>
                     </div>
                   </div>
                 </div>

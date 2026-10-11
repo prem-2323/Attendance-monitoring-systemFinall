@@ -37,9 +37,13 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const [liveDashboard, setLiveDashboard] = useState<EmployeeDashboardResponse | null>(null);
   const [liveSmartHours, setLiveSmartHours] = useState<SmartHoursResponse | null>(null);
 
-  const empId = currentUser?.employeeId || 'EMP001';
+  const empId = currentUser?.employeeId || '';
 
   const fetchDashboardData = async () => {
+    if (!empId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const [dash, smart] = await Promise.all([
@@ -76,14 +80,14 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
     (a) => a.status === 'Present' || a.status === 'Working'
   ).length;
   const lateCount = allMyRecords.filter((a) => a.status === 'Late').length;
-  const attendanceRate = liveDashboard?.attendanceRate ?? (Math.round(((presentCount + lateCount) / totalDays) * 1000) / 10 || 95.0);
+  const attendanceRate = liveDashboard?.attendanceRate ?? (allMyRecords.length > 0 ? (Math.round(((presentCount + lateCount) / totalDays) * 1000) / 10) : 0);
 
   const checkInTime = todayRecord?.checkIn || (liveSmartHours?.checkInTime && liveSmartHours.checkInTime !== '09:00 AM' ? liveSmartHours.checkInTime : '--');
   const checkOutTime = todayRecord?.checkOut || '--';
   const hoursWorked = todayRecord?.hoursWorked || (liveSmartHours?.workedTime && checkInTime !== '--' ? liveSmartHours.workedTime : '--');
-  const remainingTime = liveSmartHours?.remainingTime || '2h 18m';
-  const expectedCheckout = liveSmartHours?.expectedCheckoutTime || (checkInTime !== '--' ? '05:30 PM' : '--');
-  const completionPercent = checkInTime !== '--' ? (liveSmartHours?.completionPercent || 65) : 0;
+  const remainingTime = liveSmartHours?.remainingTime || (checkInTime !== '--' ? 'Pending' : '--');
+  const expectedCheckout = liveSmartHours?.expectedCheckoutTime || '--';
+  const completionPercent = checkInTime !== '--' ? (liveSmartHours?.completionPercent || 0) : 0;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -91,7 +95,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-2">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-            Good morning, {currentUser?.name?.split(' ')[0] || 'John'} 👋
+            Good morning, {currentUser?.name?.split(' ')[0] || 'Employee'} 👋
           </h1>
           <p className="mt-1 text-sm text-slate-500 font-normal">
             {currentUser?.department} · Employee ID: <span className="font-semibold text-slate-700">{currentUser?.employeeId}</span>
@@ -333,7 +337,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                   My Attendance History
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed font-normal">
-                  Review monthly check-in logs, punctuality metrics, and hours recorded for October 2026.
+                  Review monthly check-in logs, punctuality metrics, and hours recorded.
                 </p>
                 <div className="mt-4 flex items-center text-xs font-semibold text-blue-600 group-hover:text-blue-700">
                   <span>View logs & export</span>
