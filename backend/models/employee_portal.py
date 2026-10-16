@@ -16,6 +16,7 @@ class MarkAttendanceRequest(BaseModel):
     livenessVerified: bool = True
     locationName: Optional[str] = "Head Office Block"
     faceVector: Optional[str] = None
+    faceImageBase64: Optional[str] = None
     # Live GPS fix — when supplied, the server enforces the office
     # geofence BOX (point-in-polygon) instead of the legacy radius check.
     latitude: Optional[float] = None
@@ -34,3 +35,9 @@ class SmartHoursSimulationRequest(BaseModel):
     employeeId: str = Field(..., min_length=1)
     simulatedCheckIn: Optional[str] = "09:00 AM"
     simulatedCurrentTime: Optional[str] = "05:00 PM"
+
+
+class FaceDetectRequest(BaseModel):
+    imageBase64: str = Field(..., min_length=10, description="Base64 encoded JPEG/PNG frame from webcam")
+    employeeId: Optional[str] = None
+

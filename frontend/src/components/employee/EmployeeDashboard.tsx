@@ -76,11 +76,14 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const allMyRecords = [...(todayRecord ? [todayRecord] : []), ...myHistory];
 
   const totalDays = Math.max(1, liveDashboard?.totalTrackedDays || allMyRecords.length);
+  const FLEX_S = 'Present — Flexible Shift';
+  const INPROG_S = 'In Progress';
   const presentCount = allMyRecords.filter(
-    (a) => a.status === 'Present' || a.status === 'Working'
+    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === FLEX_S
   ).length;
+  const inProgressCount = allMyRecords.filter((a) => (a.status as string) === INPROG_S).length;
   const lateCount = allMyRecords.filter((a) => a.status === 'Late').length;
-  const attendanceRate = liveDashboard?.attendanceRate ?? (allMyRecords.length > 0 ? (Math.round(((presentCount + lateCount) / totalDays) * 1000) / 10) : 0);
+  const attendanceRate = liveDashboard?.attendanceRate ?? (allMyRecords.length > 0 ? (Math.round(((presentCount + lateCount + inProgressCount) / totalDays) * 1000) / 10) : 0);
 
   const checkInTime = todayRecord?.checkIn || (liveSmartHours?.checkInTime && liveSmartHours.checkInTime !== '09:00 AM' ? liveSmartHours.checkInTime : '--');
   const checkOutTime = todayRecord?.checkOut || '--';

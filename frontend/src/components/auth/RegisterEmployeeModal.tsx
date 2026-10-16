@@ -11,9 +11,11 @@ import {
   RefreshCw,
   ScanFace,
   Wand2,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
+import { employeeApi } from '../../services/employeeApi';
 
 interface RegisterEmployeeModalProps {
   isOpen: boolean;
@@ -47,34 +49,62 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   const [password, setPassword] = useState('');
   const [autoLogin, setAutoLogin] = useState(true);
   const [faceCaptured, setFaceCaptured] = useState(false);
+  const [capturedFaceB64, setCapturedFaceB64] = useState<string | null>(null);
+  const [faceEnrollStatus, setFaceEnrollStatus] = useState<string>('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [useVirtualCam, setUseVirtualCam] = useState(false);
+  const [streamActive, setStreamActive] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Camera video ref
+  // Camera video ref & file input ref
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Initialize camera stream
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    let localStream: MediaStream | null = null;
+    let isCancelled = false;
+
     if (isOpen && !useVirtualCam && navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices
-        .getUserMedia({ video: { width: 400, height: 300, facingMode: 'user' } })
+        .getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user',
+          },
+        })
         .then((s) => {
-          stream = s;
+          if (isCancelled) {
+            s.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          localStream = s;
+          setMediaStream(s);
           if (videoRef.current) {
             videoRef.current.srcObject = s;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().catch(console.warn);
+              setStreamActive(true);
+            };
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.warn('Real webcam not accessible, switching to virtual/upload mode.', err);
           setUseVirtualCam(true);
+          setStreamActive(false);
         });
     }
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+      isCancelled = true;
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
       }
+      setMediaStream(null);
+      setStreamActive(false);
     };
   }, [isOpen, useVirtualCam]);
 
@@ -94,16 +124,178 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
     setDepartment('Engineering');
     if (availableManagers[0]?.name) setManagerName(availableManagers[0].name);
     setPassword('password123');
-    setFaceCaptured(true);
     setErrorMsg('');
   };
 
-  const handleCaptureFace = () => {
+  // Helper to wait for video dimensions to stabilize
+  const waitForVideoReady = async (vid: HTMLVideoElement, timeoutMs = 1200): Promise<boolean> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (vid.videoWidth > 0 && vid.videoHeight > 0) return true;
+      await new Promise((res) => setTimeout(res, 100));
+    }
+    return vid.videoWidth > 0 && vid.videoHeight > 0;
+  };
+
+  const handleCaptureFace = async () => {
+    setErrorMsg('');
     setIsCapturing(true);
-    setTimeout(() => {
+
+    try {
+      if (!useVirtualCam) {
+        setFaceEnrollStatus('Connecting to optical sensor...');
+        const video = videoRef.current;
+
+        // If stream is active but video dimensions haven't updated yet, wait up to 1200ms
+        const isReady = video ? await waitForVideoReady(video) : false;
+
+        if (!video || !isReady) {
+          setErrorMsg(
+            'Webcam stream is warming up or blocked. You can click "Upload Photo" below or switch to "Virtual Sensor".'
+          );
+          setIsCapturing(false);
+          return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setErrorMsg('Could not process video frame.');
+          setIsCapturing(false);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        setFaceEnrollStatus('Validating human face biometrics...');
+        const check = await employeeApi.detectFace(dataUrl);
+
+        if (!check.faceDetected) {
+          setErrorMsg(
+            'No human face detected in camera viewport! Please center your face inside the frame and retry.'
+          );
+          setFaceCaptured(false);
+          setCapturedFaceB64(null);
+          setIsCapturing(false);
+          return;
+        }
+
+        // Valid human face detected & registered
+        setCapturedFaceB64(dataUrl);
+        setFaceCaptured(true);
+        setFaceEnrollStatus(`Human Face Validated (${Math.round((check.confidence || 0.95) * 100)}%)`);
+      } else {
+        // Virtual Sensor mode: synthesize biometric avatar on canvas
+        setFaceEnrollStatus('Synthesizing biometric profile...');
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 300;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const bg = ctx.createLinearGradient(0, 0, 300, 300);
+          bg.addColorStop(0, '#f1f5f9');
+          bg.addColorStop(1, '#e2e8f0');
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, 300, 300);
+
+          // Face oval
+          ctx.fillStyle = '#f6d1b7';
+          ctx.beginPath();
+          ctx.ellipse(150, 150, 75, 100, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Hair
+          ctx.fillStyle = '#332219';
+          ctx.beginPath();
+          ctx.ellipse(150, 85, 76, 45, 0, 0, Math.PI, true);
+          ctx.fill();
+
+          // Eyes
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(120, 135, 9, 0, Math.PI * 2);
+          ctx.arc(180, 135, 9, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Nose
+          ctx.strokeStyle = '#c28562';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(150, 142);
+          ctx.lineTo(150, 175);
+          ctx.stroke();
+
+          // Smile
+          ctx.strokeStyle = '#be123c';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(150, 195, 24, 0.15 * Math.PI, 0.85 * Math.PI, false);
+          ctx.stroke();
+
+          const synthB64 = canvas.toDataURL('image/jpeg', 0.9);
+          const check = await employeeApi.detectFace(synthB64);
+          setCapturedFaceB64(synthB64);
+          setFaceCaptured(true);
+          setFaceEnrollStatus(`Virtual Biometric Enrolled (${Math.round((check.confidence || 0.98) * 100)}%)`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Face capture failed:', err);
+      setErrorMsg(err?.message || 'Failed to capture face. Please verify camera permissions or upload a photo.');
+    } finally {
       setIsCapturing(false);
-      setFaceCaptured(true);
-    }, 1200);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setErrorMsg('');
+    setIsCapturing(true);
+    setFaceEnrollStatus('Analyzing uploaded portrait photo...');
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const dataUrl = ev.target?.result as string;
+        try {
+          const check = await employeeApi.detectFace(dataUrl);
+          if (!check.faceDetected) {
+            setErrorMsg('No human face detected in uploaded photo! Please choose a clear front-facing portrait.');
+            setFaceCaptured(false);
+            setCapturedFaceB64(null);
+            setIsCapturing(false);
+            return;
+          }
+
+          setCapturedFaceB64(dataUrl);
+          setFaceCaptured(true);
+          setFaceEnrollStatus(`Human Face Validated (${Math.round((check.confidence || 0.95) * 100)}%)`);
+        } catch (detErr: any) {
+          setErrorMsg(detErr.message || 'Face detection check failed.');
+        } finally {
+          setIsCapturing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to read image file');
+      setIsCapturing(false);
+    }
+  };
+
+  const handleRetakeFace = () => {
+    setFaceCaptured(false);
+    setCapturedFaceB64(null);
+    setFaceEnrollStatus('');
+    setErrorMsg('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +304,11 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
 
     if (!name.trim() || !email.trim() || !employeeId.trim()) {
       setErrorMsg('Please complete all required employee fields.');
+      return;
+    }
+
+    if (!faceCaptured || !capturedFaceB64) {
+      setErrorMsg('Biometric face registration is required. Please capture and enroll your face before submitting.');
       return;
     }
 
@@ -128,8 +325,10 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
         managerId: assignedMgr?.id,
         managerName: managerName,
         password: password.trim() || 'password123',
-        faceRegistered: faceCaptured,
-        faceVector: faceCaptured ? 'VEC-128-ENROLLED-PASSIVE' : undefined,
+        faceRegistered: true,
+        faceVector: `VEC-128-${employeeId.trim()}`,
+        avatarUrl: capturedFaceB64,
+        faceImageBase64: capturedFaceB64,
       });
 
       const newEmp = res.user;
@@ -326,25 +525,33 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
             </div>
 
             <div className="relative mx-auto flex h-40 w-56 flex-col items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-slate-900 text-white shadow-inner">
-              {faceCaptured ? (
-                <div className="flex flex-col items-center text-center p-2">
-                  <div className="relative h-16 w-16 rounded-full border-2 border-emerald-400 p-0.5 mb-2 overflow-hidden shadow-lg bg-slate-800 flex items-center justify-center">
-                    <ScanFace className="h-10 w-10 text-emerald-400" />
-                    <div className="absolute inset-0 ring-2 ring-emerald-500 rounded-full animate-ping opacity-25" />
-                  </div>
-                  <span className="text-xs text-emerald-400 font-bold">128-D Vector Enrolled</span>
-                  <span className="text-[10px] text-slate-400">Cosine Confidence: 99.4%</span>
+              {faceCaptured && capturedFaceB64 ? (
+                <div className="relative h-full w-full flex flex-col items-center justify-center p-2 bg-slate-950">
+                  <img
+                    src={capturedFaceB64}
+                    alt="Captured Face Biometric"
+                    className="h-28 w-28 object-cover rounded-xl border-2 border-emerald-400 shadow-lg"
+                  />
+                  <span className="text-[11px] text-emerald-400 font-bold mt-1 flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Biometric Face Enrolled
+                  </span>
                 </div>
               ) : isCapturing ? (
                 <div className="flex flex-col items-center gap-2 text-xs">
                   <div className="h-7 w-7 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-                  <span className="text-xs text-emerald-300 font-semibold">Extracting Landmarks...</span>
+                  <span className="text-xs text-emerald-300 font-semibold">{faceEnrollStatus || 'Extracting Landmarks...'}</span>
                   <span className="text-[10px] text-slate-400">Verifying anti-spoof liveness</span>
                 </div>
               ) : !useVirtualCam ? (
                 <div className="relative h-full w-full">
                   <video
-                    ref={videoRef}
+                    ref={(el) => {
+                      videoRef.current = el;
+                      if (el && mediaStream && el.srcObject !== mediaStream) {
+                        el.srcObject = mediaStream;
+                        el.play().catch(() => {});
+                      }
+                    }}
                     autoPlay
                     playsInline
                     muted
@@ -353,7 +560,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
                   <div className="pointer-events-none absolute inset-0 border-2 border-dashed border-emerald-400/70 m-3 rounded-lg" />
                   <div className="absolute bottom-1.5 inset-x-0 text-center">
                     <span className="bg-slate-900/80 px-2 py-0.5 rounded text-[10px] text-emerald-400 font-semibold">
-                      Live Webcam Active
+                      {streamActive ? 'Live Webcam Active' : 'Connecting to Camera...'}
                     </span>
                   </div>
                 </div>
@@ -361,12 +568,21 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
                 <div className="flex flex-col items-center gap-1.5 text-slate-400 text-center p-3">
                   <Camera className="h-8 w-8 stroke-1 text-slate-300" />
                   <span className="text-xs text-slate-200 font-medium">Virtual Sensor Active</span>
-                  <span className="text-[10px] text-slate-400">Click button below to enroll face vector</span>
+                  <span className="text-[10px] text-slate-400">Click button below to enroll biometric vector</span>
                 </div>
               )}
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
+            {/* Hidden file input for photo upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => setUseVirtualCam(!useVirtualCam)}
@@ -376,14 +592,39 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
                 <span>{useVirtualCam ? 'Use Live Webcam' : 'Use Virtual Sensor'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleCaptureFace}
-                disabled={isCapturing}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer transition-colors shadow-xs"
-              >
-                {faceCaptured ? 'Re-enroll Face' : 'Capture & Enroll Face'}
-              </button>
+              <div className="flex items-center gap-2">
+                {!faceCaptured && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCapturing}
+                    className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Upload Photo</span>
+                  </button>
+                )}
+
+                {faceCaptured && (
+                  <button
+                    type="button"
+                    onClick={handleRetakeFace}
+                    className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Retake Photo</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCaptureFace}
+                  disabled={isCapturing}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer transition-colors shadow-xs"
+                >
+                  {isCapturing ? 'Verifying...' : faceCaptured ? 'Re-enroll Face' : 'Capture & Enroll Face'}
+                </button>
+              </div>
             </div>
           </div>
 

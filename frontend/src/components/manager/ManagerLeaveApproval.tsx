@@ -71,10 +71,26 @@ export const ManagerLeaveApproval: React.FC = () => {
     await Promise.all([refreshLeaveRequests(), refreshApprovalAudits(), fetchTeamLeaves()]);
   };
 
-  // Filter requests relevant to this manager or all if admin
-  const teamLeaves = liveLeaves !== null ? liveLeaves : leaveRequests.filter(
-    (l) => currentUser?.role === 'admin' || l.managerId === currentUser?.id || l.managerName === currentUser?.name
-  );
+  // Filter requests relevant to this manager or all if admin.
+  // Merge live Atlas result with context cache so a stale/empty live
+  // response never hides team leaves (e.g. leaves created before the
+  // employee was assigned managerId/managerName).
+  const teamLeaves = (() => {
+    const base = liveLeaves !== null ? liveLeaves : [];
+    const merged = new Map<string, LeaveRequest>();
+    [...base, ...leaveRequests].forEach((l) => {
+      if (l && (l as any).id) merged.set((l as any).id, l);
+    });
+    const all = merged.size > 0 ? Array.from(merged.values()) : base;
+    return all.filter(
+      (l) =>
+        currentUser?.role === 'admin' ||
+        (l as any).managerId === currentUser?.id ||
+        (l as any).managerId === currentUser?.employeeId ||
+        (l as any).managerName === currentUser?.name ||
+        (l as any).department === currentUser?.department
+    );
+  })();
 
   const pendingRequests = teamLeaves.filter((l) => l.status === 'Pending');
   const reviewedRequests = teamLeaves.filter((l) => l.status !== 'Pending');
@@ -111,7 +127,7 @@ export const ManagerLeaveApproval: React.FC = () => {
   const employeeAttendanceHistory = modalAnalysis?.records || fallbackHistory;
   const totalDays = modalAnalysis?.stats?.totalDays || Math.max(1, employeeAttendanceHistory.length);
   const presentDays = modalAnalysis?.stats?.presentDays || employeeAttendanceHistory.filter(
-    (a) => a.status === 'Present' || a.status === 'Working'
+    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === 'Present — Flexible Shift'
   ).length;
   const lateDays = modalAnalysis?.stats?.lateDays || employeeAttendanceHistory.filter((a) => a.status === 'Late').length;
   const absentDays = modalAnalysis?.stats?.absentDays || employeeAttendanceHistory.filter((a) => a.status === 'Absent').length;

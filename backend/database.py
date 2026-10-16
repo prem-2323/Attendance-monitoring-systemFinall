@@ -42,8 +42,9 @@ approval_collection        = db["approval_requests"] if db is not None else None
 users_collection           = db["users"]            if db is not None else None
 reset_tokens_collection    = db["reset_tokens"]     if db is not None else None
 settings_collection        = db["settings"]         if db is not None else None
-approval_audits_collection = db["approval_audits"]  if db is not None else None
-leave_requests_collection  = db["leave_requests"]   if db is not None else None
+approval_audits_collection     = db["approval_audits"]      if db is not None else None
+leave_requests_collection      = db["leave_requests"]       if db is not None else None
+email_notifications_collection = db["email_notifications"]  if db is not None else None
 
 def seed_initial_users():
     """No-op: Seed user data removed. All user accounts are created dynamically through live registration."""
@@ -55,7 +56,7 @@ def seed_initial_settings():
         return
     try:
         from backend.services.geofence import get_configured_polygon, polygon_centroid
-        from backend.config import OFFICE_NAME, OFFICE_ADDRESS
+        from backend.config import OFFICE_NAME, OFFICE_ADDRESS, OFFICE_RADIUS_METERS
         box = get_configured_polygon()
         c_lat, c_lng = polygon_centroid(box)
         existing = settings_collection.find_one({"key": "global_settings"})
@@ -67,7 +68,7 @@ def seed_initial_settings():
                     "address": OFFICE_ADDRESS,
                     "lat": c_lat,
                     "lng": c_lng,
-                    "allowedRadiusMeters": 150,
+                    "allowedRadiusMeters": OFFICE_RADIUS_METERS,
                 },
                 "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in box],
                 "smartHoursConfig": {
@@ -132,6 +133,13 @@ if db is not None:
         leave_requests_collection.create_index(
             [("employeeId", ASCENDING), ("fromDate", ASCENDING)], name="leave_empid_date"
         )
+        if email_notifications_collection is not None:
+            email_notifications_collection.create_index(
+                [("event_key", ASCENDING)], unique=True, name="notification_event_key_unique"
+            )
+            email_notifications_collection.create_index(
+                [("status", ASCENDING)], name="notification_status"
+            )
         print("[DB] Indexes ensured.")
         seed_initial_users()
         seed_initial_settings()

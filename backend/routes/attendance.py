@@ -162,6 +162,24 @@ async def verify_attendance(
         approval_doc = build_approval_doc(attendance_id, employee_id)
         approval_collection.insert_one(approval_doc)
 
+    # ── 10. Trigger Attendance Email Notifications ────────────────────────────
+    try:
+        import os
+        from zoneinfo import ZoneInfo
+        from backend.app.email_service import queue_attendance_emails, process_pending_emails
+
+        tz_ind = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
+        now_dt = datetime.now(tz_ind)
+        queue_attendance_emails(
+            employee=employee,
+            status="present",
+            attendance_date=now_dt.date(),
+            check_in=now_dt,
+        )
+        process_pending_emails()
+    except Exception as notify_err:
+        logger.warning(f"[Attendance] Could not dispatch email notifications: {notify_err}")
+
     logger.info(
         f"[Attendance] '{employee_id}' verified. Confidence={confidence:.4f} "
         f"Late={att_doc['late']} Approval={att_doc['approval_status']}"

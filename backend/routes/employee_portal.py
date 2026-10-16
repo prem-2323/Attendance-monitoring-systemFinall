@@ -7,6 +7,7 @@ FastAPI Routes for Employee Portal:
 - Smart Hours Dynamic Shift Calculation
 """
 
+import base64
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -17,12 +18,15 @@ from backend.database import (
     attendance_collection,
     leave_requests_collection,
     settings_collection,
+    employees_collection,
 )
 from backend.models.employee_portal import (
     MarkAttendanceRequest,
     ApplyLeaveRequest,
     SmartHoursSimulationRequest,
+    FaceDetectRequest,
 )
+from backend.services.face_detector import decode_image, detect_faces
 
 logger = logging.getLogger("employee_portal_routes")
 router = APIRouter(tags=["Employee Portal"])
@@ -78,11 +82,11 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         # The client sends its live GPS fix (latitude/longitude); the server
         # re-verifies with a point-in-polygon test so spoofed flags can't pass.
         settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
-        allowed_radius = 150
+        allowed_radius = 1000
         office_name = "Head Office Block"
         polygon = None
         if settings_doc and "officeLocation" in settings_doc:
-            allowed_radius = settings_doc["officeLocation"].get("allowedRadiusMeters", 150)
+            allowed_radius = settings_doc["officeLocation"].get("allowedRadiusMeters", 1000)
             office_name = settings_doc["officeLocation"].get("name", office_name)
         if settings_doc and settings_doc.get("geofencePolygon"):
             try:
@@ -103,19 +107,20 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         office_box = polygon or get_configured_polygon()
 
         if payload.latitude is not None and payload.longitude is not None:
+            c_lat, c_lng = polygon_centroid(office_box)
+            dist_to_center = round(haversine_meters(payload.latitude, payload.longitude, c_lat, c_lng))
             inside_box = point_in_polygon(payload.latitude, payload.longitude, office_box)
-            if not inside_box:
+            within_allowed = inside_box or (dist_to_center <= allowed_radius)
+            if not within_allowed:
                 raise HTTPException(
                     status_code=400,
                     detail=(
-                        "Outside office geofence box: your GPS position "
-                        f"({payload.latitude:.6f}, {payload.longitude:.6f}) is not inside "
-                        f"the {office_name} premises. Attendance can only be marked inside the office box."
+                        f"Outside office geofence: your GPS position ({payload.latitude:.6f}, {payload.longitude:.6f}) "
+                        f"is {dist_to_center}m away from {office_name}, exceeding the allowed {allowed_radius}m radius."
                     ),
                 )
-            # Verified inside — record diagnostics relative to the box centre.
-            c_lat, c_lng = polygon_centroid(office_box)
-            payload.distanceMeters = round(haversine_meters(payload.latitude, payload.longitude, c_lat, c_lng))
+            # Verified inside polygon box or within 1000m radius
+            payload.distanceMeters = dist_to_center
             payload.withinRadius = True
         elif not payload.withinRadius and payload.distanceMeters > allowed_radius:
             raise HTTPException(
@@ -129,16 +134,66 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 detail="Liveness verification failed: face-presence check could not be validated.",
             )
 
+        # 2.5 Biometric Facial Verification Check
+        if payload.faceImageBase64:
+            from backend.services.face_detector import decode_image, detect_faces
+            from backend.services.face_landmark import align_face
+            from backend.services import face_recognition as fr_service
+            import base64
+
+            stored_emb = None
+            if employees_collection is not None:
+                edoc = employees_collection.find_one({
+                    "$or": [{"employee_id": payload.employeeId}, {"employeeId": payload.employeeId}]
+                })
+                if edoc:
+                    stored_emb = edoc.get("face_embedding")
+            if not stored_emb and users_collection is not None:
+                udoc = users_collection.find_one({
+                    "$or": [{"employeeId": payload.employeeId}, {"id": payload.employeeId}]
+                })
+                if udoc:
+                    stored_emb = udoc.get("faceEmbedding") or udoc.get("face_embedding")
+
+            if stored_emb and isinstance(stored_emb, list) and len(stored_emb) > 0:
+                raw_img = payload.faceImageBase64.strip()
+                payload_b64 = raw_img.split(",", 1)[1] if "," in raw_img else raw_img
+                img_bytes = base64.b64decode(payload_b64)
+                img_bgr = decode_image(img_bytes)
+                if img_bgr is not None:
+                    dets = detect_faces(img_bgr)
+                    if not dets:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="No human face visible in attendance verification snapshot.",
+                        )
+                    best_det = max(dets, key=lambda d: d.get("confidence", 0.9))
+                    aligned_face = align_face(img_bgr, best_det["box"])
+                    live_emb = fr_service.get_face_embedding(aligned_face if aligned_face is not None else img_bgr)
+                    if live_emb is not None:
+                        sim = fr_service.compute_similarity(live_emb, stored_emb)
+                        is_match_res, _ = fr_service.is_match(live_emb, stored_emb, threshold=0.52)
+                        if not is_match_res or sim < 0.52:
+                            raise HTTPException(
+                                status_code=403,
+                                detail="This is not your face. Face biometric does not match the registered employee profile.",
+                            )
+
         # 3. Format current time
         now = datetime.now()
         formatted_time = now.strftime("%I:%M %p")
         today_str = now.strftime("%Y-%m-%d")
 
-        # 4. Status logic: If check-in after 09:15 AM -> Late, else Present
-        status_eval = "Present"
-        if not payload.isCheckOut:
-            if now.hour > 9 or (now.hour == 9 and now.minute > 15):
-                status_eval = "Late"
+        # 4. Smart-hours policy (dynamic from Atlas, never hardcoded).
+        from backend.services.smart_hours import (
+            get_smart_config,
+            classify_arrival,
+            compute_shift,
+            finalize_status,
+            STATUS_IN_PROGRESS,
+        )
+        smart_cfg = get_smart_config(settings_doc)
+        target_hours = int(smart_cfg.get("expectedHoursPerDay", 8))
 
         # Check existing today record
         existing = attendance_collection.find_one({
@@ -147,9 +202,12 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         })
 
         if payload.isCheckOut:
-            # Check-out operation
-            check_in_time = existing.get("checkIn") if existing else "09:00 AM"
-            hours_worked = _calc_hours_difference(check_in_time, formatted_time) if check_in_time else "8h 00m"
+            # Check-out operation: finalize from ACTUAL persisted hours.
+            check_in_time = (existing.get("checkIn") if existing else None) or "09:00 AM"
+            shift = compute_shift(check_in_time, formatted_time, smart_cfg)
+            hours_worked = shift["workedStr"]
+            final_status, _ctx = finalize_status(check_in_time, formatted_time, smart_cfg)
+            arrival = classify_arrival(check_in_time, smart_cfg)
 
             updated_doc = {
                 "id": existing.get("id") if existing else f"att-today-{int(now.timestamp() * 1000)}",
@@ -161,7 +219,11 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "checkIn": check_in_time,
                 "checkOut": formatted_time,
                 "hoursWorked": hours_worked,
-                "status": existing.get("status") if (existing and existing.get("status") != "Absent") else "Present",
+                "workedMinutes": shift["workedMinutes"],
+                "targetMinutes": shift["targetMinutes"],
+                "expectedCheckout": shift["expectedCheckout"],
+                "arrivalStatus": arrival["arrivalStatus"],
+                "status": final_status,
                 "verifiedBy": "Face + GPS",
                 "locationName": payload.locationName or office_name,
                 "distanceMeters": round(payload.distanceMeters),
@@ -181,11 +243,14 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
 
             return {
                 "success": True,
-                "message": f"Check-out successfully recorded at {formatted_time}! Logged {hours_worked} worked.",
+                "message": f"Check-out successfully recorded at {formatted_time}! Logged {hours_worked} worked. Status: {final_status}.",
                 "record": _clean_doc(updated_doc),
             }
         else:
-            # Check-in operation
+            # Check-in operation: arrival punctuality is recorded separately;
+            # daily status stays In Progress until required hours are done.
+            arrival = classify_arrival(formatted_time, smart_cfg)
+            shift_preview = compute_shift(formatted_time, None, smart_cfg)
             updated_doc = {
                 "id": existing.get("id") if existing else f"att-today-{int(now.timestamp() * 1000)}",
                 "employeeId": payload.employeeId,
@@ -196,7 +261,11 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "checkIn": formatted_time,
                 "checkOut": existing.get("checkOut") if existing else None,
                 "hoursWorked": existing.get("hoursWorked", "--") if existing else "--",
-                "status": status_eval,
+                "workedMinutes": 0,
+                "targetMinutes": shift_preview["targetMinutes"],
+                "expectedCheckout": shift_preview["expectedCheckout"],
+                "arrivalStatus": arrival["arrivalStatus"],
+                "status": STATUS_IN_PROGRESS,
                 "verifiedBy": "Face + GPS",
                 "locationName": payload.locationName or office_name,
                 "distanceMeters": round(payload.distanceMeters),
@@ -214,9 +283,27 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 upsert=True,
             )
 
+            # Trigger Attendance Email Notifications
+            try:
+                import os
+                from zoneinfo import ZoneInfo
+                from backend.app.email_service import queue_attendance_emails, process_pending_emails
+
+                tz_ind = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
+                now_dt = datetime.now(tz_ind)
+                queue_attendance_emails(
+                    employee=emp,
+                    status="present",
+                    attendance_date=now_dt.date(),
+                    check_in=now_dt,
+                )
+                process_pending_emails()
+            except Exception as notify_err:
+                logger.warning(f"[Portal] Could not queue email notification: {notify_err}")
+
             return {
                 "success": True,
-                "message": f"Attendance verified via Face + GPS at {formatted_time}! Status: {status_eval}.",
+                "message": f"Attendance verified via Face + GPS at {formatted_time}! Status: {STATUS_IN_PROGRESS} ({arrival['arrivalStatus']}, expected checkout {shift_preview['expectedCheckout']}).",
                 "record": _clean_doc(updated_doc),
             }
     except HTTPException:
@@ -224,6 +311,123 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
     except Exception as e:
         logger.exception("Failed to mark attendance")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── 1.1 Real-Time Camera Frame Face Detection ─────────────────────────────────
+
+@router.post("/face/detect")
+async def detect_live_face(payload: FaceDetectRequest):
+    """
+    Real-time face detection on captured webcam frame.
+    Validates whether an actual human face is present in the camera stream.
+    Rejects walls, objects, and empty rooms.
+    """
+    try:
+        raw_b64 = payload.imageBase64.strip()
+        if "," in raw_b64:
+            raw_b64 = raw_b64.split(",", 1)[1]
+
+        image_bytes = base64.b64decode(raw_b64)
+        if len(image_bytes) == 0:
+            return {
+                "faceDetected": False,
+                "count": 0,
+                "message": "Empty frame received",
+            }
+
+        image_bgr = decode_image(image_bytes)
+        if image_bgr is None or image_bgr.size == 0:
+            return {
+                "faceDetected": False,
+                "count": 0,
+                "message": "Unable to decode video frame",
+            }
+
+        detections = detect_faces(image_bgr)
+        if not detections:
+            return {
+                "faceDetected": False,
+                "count": 0,
+                "message": "No human face detected. Please position your face inside the camera view.",
+            }
+
+        best = max(detections, key=lambda d: d.get("confidence", 0.9))
+        box = best["box"]  # (x, y, w, h)
+
+        face_matched = True
+        match_confidence = float(best.get("confidence", 0.95))
+        status_msg = "Human face detected successfully"
+
+        # If employeeId provided, verify against registered database face embedding
+        if payload.employeeId:
+            emp_clean = payload.employeeId.strip()
+            stored_emb = None
+            if employees_collection is not None:
+                edoc = employees_collection.find_one({
+                    "$or": [
+                        {"employee_id": emp_clean},
+                        {"employeeId": emp_clean},
+                        {"employee_id": emp_clean.upper()},
+                        {"employeeId": emp_clean.upper()},
+                    ]
+                })
+                if edoc:
+                    stored_emb = edoc.get("face_embedding")
+
+            if not stored_emb and users_collection is not None:
+                udoc = users_collection.find_one({
+                    "$or": [
+                        {"employeeId": emp_clean},
+                        {"employee_id": emp_clean},
+                        {"employeeId": emp_clean.upper()},
+                    ]
+                })
+                if udoc:
+                    stored_emb = udoc.get("faceEmbedding") or udoc.get("face_embedding")
+
+            if stored_emb and isinstance(stored_emb, list) and len(stored_emb) > 0:
+                from backend.services.face_landmark import align_face
+                from backend.services import face_recognition as fr_service
+
+                aligned = align_face(image_bgr, box)
+                live_emb = fr_service.get_face_embedding(aligned if aligned is not None else image_bgr)
+                if live_emb is not None:
+                    similarity = fr_service.compute_similarity(live_emb, stored_emb)
+                    is_match_res, _ = fr_service.is_match(live_emb, stored_emb, threshold=0.52)
+                    match_confidence = float(similarity)
+                    if not is_match_res or similarity < 0.52:
+                        face_matched = False
+                        status_msg = "This is not your face. Face biometric does not match the registered employee profile."
+                    else:
+                        face_matched = True
+                        status_msg = f"Identity verified & matched with enrolled profile ({round(similarity*100)}% match)."
+                else:
+                    face_matched = False
+                    status_msg = "Could not compute biometric signature from live face."
+            else:
+                face_matched = False
+                status_msg = "No registered face biometrics found in database for your profile. Please register your face first."
+
+        return {
+            "faceDetected": True,
+            "faceMatched": face_matched,
+            "count": len(detections),
+            "box": {
+                "x": int(box[0]),
+                "y": int(box[1]),
+                "width": int(box[2]),
+                "height": int(box[3]),
+            },
+            "confidence": match_confidence,
+            "message": status_msg,
+        }
+    except Exception as e:
+        logger.exception("Face detection processing error")
+        return {
+            "faceDetected": False,
+            "count": 0,
+            "message": f"Detection error: {str(e)}",
+        }
 
 
 # ── 2. Employee Attendance History & Stats ────────────────────────────────────
@@ -241,48 +445,43 @@ async def get_employee_attendance_history(
         if attendance_collection is None:
             return {"records": [], "stats": {}}
 
+        emp_clean = employee_id.strip()
         query: Dict[str, Any] = {
-            "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}]
+            "$or": [
+                {"employeeId": emp_clean},
+                {"employee_id": emp_clean},
+                {"employeeId": emp_clean.upper()},
+                {"employee_id": emp_clean.upper()},
+                {"employeeId": emp_clean.lower()},
+                {"employee_id": emp_clean.lower()},
+            ]
         }
         if status_filter and status_filter != "All":
             query["status"] = status_filter
-        if month:
+        if month and month.strip():
             # e.g., '2026-10'
-            query["date"] = {"$regex": f"^{month}"}
+            query["date"] = {"$regex": f"^{month.strip()}"}
 
         cursor = attendance_collection.find(query).sort("date", -1)
         records = [_clean_doc(r) for r in cursor]
 
-        # Calculate statistics dynamically from records in Atlas
-        present_count = 0
-        late_count = 0
-        leave_count = 0
-        absent_count = 0
-
-        for r in records:
-            st = r.get("status")
-            if st in ["Present", "Working"]:
-                present_count += 1
-            elif st == "Late":
-                late_count += 1
-            elif st == "On Leave":
-                leave_count += 1
-            elif st == "Absent":
-                absent_count += 1
-
-        total_days = max(1, present_count + late_count + leave_count + absent_count)
-        attendance_pct = round(((present_count + late_count) / total_days) * 100, 1)
+        # Consistent counters: Present — Flexible Shift counts as Present;
+        # In Progress never counts as Absent.
+        from backend.services.smart_hours import count_statuses
+        counts = count_statuses(records)
 
         return {
             "employeeId": employee_id,
             "records": records,
             "stats": {
                 "totalRecords": len(records),
-                "presentDays": present_count,
-                "lateDays": late_count,
-                "leaveDays": leave_count,
-                "absentDays": absent_count,
-                "attendancePercentage": attendance_pct,
+                "presentDays": counts["presentDays"],
+                "lateDays": counts["lateDays"],
+                "leaveDays": counts["leaveDays"],
+                "absentDays": counts["absentDays"],
+                "inProgressDays": counts["inProgressDays"],
+                "flexibleShiftDays": counts["flexibleShiftDays"],
+                "attendancePercentage": counts["attendancePercentage"],
             },
         }
     except Exception as e:
@@ -402,15 +601,14 @@ async def get_employee_dashboard(employee_id: str):
             "date": today_str,
         }) if attendance_collection is not None else None
 
-        # Historical records count
+        # Historical records count (flexible shift counts as present)
         all_recs = list(attendance_collection.find({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
         })) if attendance_collection is not None else []
 
-        present_count = sum(1 for r in all_recs if r.get("status") in ["Present", "Working"])
-        late_count = sum(1 for r in all_recs if r.get("status") == "Late")
-        total_recs = max(1, len(all_recs))
-        attendance_rate = round(((present_count + late_count) / total_recs) * 100, 1)
+        from backend.services.smart_hours import count_statuses as _count_recs
+        _counts = _count_recs(all_recs)
+        attendance_rate = _counts["attendancePercentage"]
 
         # Recent leave requests
         recent_leaves = list(leave_requests_collection.find({"employeeId": employee_id}).sort("requestedAt", -1).limit(3)) if leave_requests_collection is not None else []
@@ -419,8 +617,8 @@ async def get_employee_dashboard(employee_id: str):
         settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else {}
         office_location = settings_doc.get("officeLocation", {
             "name": "Head Office Block",
-            "allowedRadiusMeters": 150,
-        }) if settings_doc else {"name": "Head Office Block", "allowedRadiusMeters": 150}
+            "allowedRadiusMeters": 1000,
+        }) if settings_doc else {"name": "Head Office Block", "allowedRadiusMeters": 1000}
 
         return {
             "employeeId": employee_id,
@@ -444,61 +642,81 @@ async def get_smart_hours_calculation(
     currentTime: Optional[str] = None,
 ):
     """
-    Calculates dynamic smart working hours based on actual today check-in or simulator input.
+    Dynamic smart-hours from Atlas policy. Actual progress comes from the
+    persisted today record; `checkIn`/`currentTime` query params are a
+    hypothetical simulator preview only and never persist anything.
     """
     try:
+        from backend.services.smart_hours import (
+            get_smart_config, compute_shift, classify_arrival,
+            minutes_to_time_str,
+        )
+        settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
+        cfg = get_smart_config(settings_doc)
+        target_h = int(cfg.get("expectedHoursPerDay", 8))
+
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
         }) if attendance_collection is not None else None
 
-        actual_check_in = checkIn or (today_rec.get("checkIn") if today_rec else "09:00 AM")
-        if not actual_check_in or actual_check_in == "--":
-            actual_check_in = "09:00 AM"
+        persisted_in = (today_rec.get("checkIn") if today_rec else None) or "09:00 AM"
+        persisted_out = today_rec.get("checkOut") if today_rec else None
+        # Actual progress: persisted check-in/out vs wall-clock now.
+        now_str = datetime.now().strftime("%I:%M %p")
+        actual_anchor = persisted_out or now_str
+        actual = compute_shift(persisted_in, actual_anchor, cfg)
+        # If no checkout yet, anchor at now for live In-Progress view.
+        if not persisted_out:
+            actual = compute_shift(persisted_in, now_str, cfg)
+        arrival = classify_arrival(persisted_in, cfg)
+        day_status = (today_rec.get("status") if today_rec else "Not Checked In")
 
-        # Calculate 8 hour expected checkout
-        fmt = "%I:%M %p"
-        try:
-            t_in = datetime.strptime(actual_check_in.strip(), fmt)
-            # Add 8 hours
-            t_expected = t_in.replace(hour=(t_in.hour + 8) % 24)
-            expected_checkout_str = t_expected.strftime("%I:%M %p")
+        # Simulator preview (hypothetical only).
+        is_sim = bool(checkIn or currentTime)
+        sim_in = (checkIn or persisted_in)
+        sim_anchor = (currentTime or now_str)
+        sim = compute_shift(sim_in, sim_anchor, cfg)
 
-            # Current or simulated time
-            t_curr = datetime.strptime(currentTime.strip(), fmt) if currentTime else datetime.now()
-            # Diff in minutes
-            diff_min = (t_curr.hour * 60 + t_curr.minute) - (t_in.hour * 60 + t_in.minute)
-            if diff_min < 0:
-                diff_min += 24 * 60
-
-            worked_h = max(0, diff_min // 60)
-            worked_m = max(0, diff_min % 60)
-            worked_str = f"{worked_h}h {worked_m:02d}m"
-
-            target_min = 8 * 60
-            remaining_min = max(0, target_min - diff_min)
-            rem_h = remaining_min // 60
-            rem_m = remaining_min % 60
-            remaining_str = f"{rem_h}h {rem_m:02d}m" if rem_h > 0 else f"{rem_m} minutes"
-
-            completion_pct = min(100, max(0, round((diff_min / target_min) * 100)))
-        except Exception:
-            worked_str = "5h 42m"
-            remaining_str = "2h 18m"
-            expected_checkout_str = "05:00 PM"
-            completion_pct = 71
-
+        # Backward-compatible top-level fields reflect ACTUAL shift,
+        # never the simulator, so dashboards can't confuse the two.
         return {
             "employeeId": employee_id,
-            "checkInTime": actual_check_in,
-            "expectedCheckoutTime": expected_checkout_str,
-            "workedTime": worked_str,
-            "remainingTime": remaining_str,
-            "completionPercent": completion_pct,
-            "targetHoursPerDay": 8,
-            "smartPolicy": "Flexible 3-hour window with 8 full working hours enforcement",
+            "checkInTime": persisted_in,
+            "expectedCheckoutTime": actual["expectedCheckout"],
+            "workedTime": today_rec.get("hoursWorked") if today_rec and today_rec.get("checkOut") else actual["workedStr"],
+            "remainingTime": actual["remainingStr"],
+            "completionPercent": actual["completionPct"],
+            "targetHoursPerDay": target_h,
+            "smartPolicy": (
+                f"Flexible {int(cfg.get('flexibleWindowMinutes', 180)) // 60}-hour window "
+                f"with {target_h} full working hours enforcement "
+                f"(standard {cfg.get('standardStartTime')} + {cfg.get('graceCheckInMinutes')}m grace)"
+            ),
+            "dayStatus": day_status,
+            "arrivalStatus": arrival["arrivalStatus"],
+            "isSimulated": is_sim,
+            "actual": {
+                "checkIn": persisted_in,
+                "checkOut": persisted_out,
+                "workedMinutes": actual["workedMinutes"],
+                "remainingMinutes": actual["remainingMinutes"],
+                "meetsRequirement": actual["meetsRequirement"],
+            },
+            "simulated": {
+                "checkIn": sim_in,
+                "anchorTime": sim_anchor,
+                "workedTime": sim["workedStr"],
+                "remainingTime": sim["remainingStr"],
+                "completionPercent": sim["completionPct"],
+                "expectedCheckout": sim["expectedCheckout"],
+                "note": "Hypothetical preview only — not persisted.",
+            } if is_sim else None,
+            "smartConfig": cfg,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to calculate smart hours")
         raise HTTPException(status_code=500, detail=str(e))

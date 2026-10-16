@@ -74,9 +74,11 @@ export const ReportsView: React.FC = () => {
       let lCount = 0;
       let aCount = 0;
       let lvCount = 0;
+      let ipCount = 0;
       filtered.forEach((r) => {
-        if (r.status === 'Present' || r.status === 'Working') pCount++;
+        if (r.status === 'Present' || r.status === 'Working' || (r.status as string) === 'Present — Flexible Shift') pCount++;
         else if (r.status === 'Late') lCount++;
+        else if ((r.status as string) === 'In Progress') ipCount++;
         else if (r.status === 'Absent') aCount++;
         else if (r.status === 'On Leave') lvCount++;
       });
@@ -92,7 +94,7 @@ export const ReportsView: React.FC = () => {
         leaveCount: lvCount,
         totalRecords: totRecs,
         avgAttendance:
-          totRecs > 0 ? Math.round(((pCount + lCount) / totRecs) * 1000) / 10 : 100.0,
+          totRecs > 0 ? Math.round(((pCount + lCount + ipCount) / totRecs) * 1000) / 10 : 100.0,
       });
       setReportGenerated(true);
     } finally {

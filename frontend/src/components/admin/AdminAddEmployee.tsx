@@ -9,9 +9,11 @@ import {
   Shield,
   ArrowLeft,
   Check,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
+import { employeeApi } from '../../services/employeeApi';
 
 interface AdminAddEmployeeProps {
   onCancel: () => void;
@@ -37,10 +39,12 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
 
   // Camera & Face Registration State
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [streamActive, setStreamActive] = useState(false);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceRegistered, setFaceRegistered] = useState(false);
+  const [faceStatusText, setFaceStatusText] = useState<string>('');
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Initialize camera stream
@@ -72,35 +76,100 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
     };
   }, []);
 
-  const handleCaptureFace = () => {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleCaptureFace = async () => {
     setIsCapturing(true);
+    setErrorMsg('');
+    setFaceStatusText('Analyzing face biometrics...');
 
-    setTimeout(() => {
+    try {
       if (videoRef.current && streamActive) {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = videoRef.current.videoWidth || 320;
-          canvas.height = videoRef.current.videoHeight || 240;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-            setCapturedPhotoUrl(canvas.toDataURL('image/jpeg'));
-          }
-        } catch {
-          // If canvas extraction fails, keep current state
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth || 640;
+        canvas.height = videoRef.current.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setErrorMsg('Could not process video frame.');
+          setIsCapturing(false);
+          return;
         }
-      }
 
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        // Run real facial detection check
+        const check = await employeeApi.detectFace(dataUrl);
+        if (!check.faceDetected) {
+          setErrorMsg('No human face detected! Please ensure face is centered with adequate lighting.');
+          setFaceRegistered(false);
+          setFaceStatusText('');
+          setIsCapturing(false);
+          return;
+        }
+
+        setCapturedPhotoUrl(dataUrl);
+        setFaceRegistered(true);
+        setFaceStatusText(`Face Verified (${Math.round((check.confidence || 0.95) * 100)}%)`);
+      } else {
+        setErrorMsg('Webcam is not active. Please grant camera permission or use the upload option.');
+      }
+    } catch (err: any) {
+      console.warn('Face capture failed:', err);
+      setErrorMsg(err.message || 'Failed to capture face.');
+      setFaceStatusText('');
+    } finally {
       setIsCapturing(false);
-      setFaceRegistered(true);
-    }, 1000);
+    }
   };
 
-  const [errorMsg, setErrorMsg] = useState('');
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCapturing(true);
+    setErrorMsg('');
+    setFaceStatusText('Analyzing uploaded image...');
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const dataUrl = event.target?.result as string;
+        try {
+          const check = await employeeApi.detectFace(dataUrl);
+          if (!check.faceDetected) {
+            setErrorMsg('No human face detected in uploaded photo. Please choose a clear front-facing portrait.');
+            setFaceRegistered(false);
+            setFaceStatusText('');
+            setIsCapturing(false);
+            return;
+          }
+
+          setCapturedPhotoUrl(dataUrl);
+          setFaceRegistered(true);
+          setFaceStatusText(`Face Verified (${Math.round((check.confidence || 0.95) * 100)}%)`);
+        } catch (detErr: any) {
+          setErrorMsg(detErr.message || 'Face detection check failed.');
+          setFaceStatusText('');
+        } finally {
+          setIsCapturing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to process file.');
+      setIsCapturing(false);
+    }
+  };
 
   const handleRetake = () => {
     setCapturedPhotoUrl(null);
     setFaceRegistered(false);
+    setFaceStatusText('');
+    setErrorMsg('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleCreateEmployee = async (e: React.FormEvent) => {
@@ -123,6 +192,7 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
         avatarUrl: capturedPhotoUrl || undefined,
         faceRegistered: faceRegistered,
         faceVector: faceRegistered ? `face_vec_${Date.now()}_128d` : undefined,
+        faceImageBase64: capturedPhotoUrl || undefined,
       });
 
       onSuccess();
@@ -293,7 +363,7 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
             {faceRegistered && (
               <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md border border-emerald-200/80">
                 <Check className="h-4 w-4 text-emerald-600" />
-                <span>Face Registered ✓</span>
+                <span>{faceStatusText || 'Face Registered ✓'}</span>
               </span>
             )}
           </div>
@@ -330,7 +400,7 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
                         <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
                       </div>
                       <span className="text-xs font-semibold text-emerald-300">Live Virtual Sensor Ready</span>
-                      <span className="text-[11px] text-slate-400 mt-0.5">Ready for optical snapshot</span>
+                      <span className="text-[11px] text-slate-400 mt-0.5">Ready for optical snapshot or photo upload</span>
                     </div>
                   )}
 
@@ -348,13 +418,30 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
                       <span className="mt-2 text-xs text-emerald-300 font-semibold">
-                        Extracting Facial Features...
+                        Extracting Facial Biometrics...
                       </span>
                     </div>
                   )}
                 </div>
               )}
             </div>
+
+            {/* Hidden file input for uploading photo */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            {/* Error display */}
+            {errorMsg && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg max-w-sm text-center">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
             {/* Action buttons under camera */}
             <div className="mt-4 flex items-center gap-3">
@@ -368,15 +455,26 @@ export const AdminAddEmployee: React.FC<AdminAddEmployeeProps> = ({ onCancel, on
                   <span>Retake Photo</span>
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleCaptureFace}
-                  disabled={isCapturing}
-                  className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  <Camera className="h-4 w-4" />
-                  <span>Capture Face</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCaptureFace}
+                    disabled={isCapturing}
+                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    <Camera className="h-4 w-4" />
+                    <span>{isCapturing ? 'Analyzing...' : 'Capture Face'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCapturing}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    <Upload className="h-4 w-4 text-slate-500" />
+                    <span>Upload Photo</span>
+                  </button>
+                </>
               )}
             </div>
           </div>

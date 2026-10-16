@@ -13,12 +13,13 @@ export interface User {
   avatarUrl?: string;
   faceRegistered?: boolean;
   faceVector?: string;
+  faceImageBase64?: string;
   joinDate: string;
   active: boolean;
   title?: string;
 }
 
-export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'On Leave' | 'Working';
+export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'On Leave' | 'Working' | 'In Progress' | 'Present — Flexible Shift';
 
 export interface AttendanceRecord {
   id: string;

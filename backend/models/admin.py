@@ -16,6 +16,7 @@ class AddEmployeeAdminRequest(BaseModel):
     avatarUrl: Optional[str] = None
     faceRegistered: Optional[bool] = False
     faceVector: Optional[str] = None
+    faceImageBase64: Optional[str] = None
 
 
 class AddManagerAdminRequest(BaseModel):
@@ -41,14 +42,14 @@ class AttendanceOverrideRequest(BaseModel):
 class OfficeSettingsUpdateRequest(BaseModel):
     name: Optional[str] = "Head Office Block"
     address: Optional[str] = "Office Campus Premises, Tamil Nadu"
-    lat: Optional[float] = 11.144035200242794
-    lng: Optional[float] = 77.32559123601078
-    allowedRadiusMeters: Optional[int] = 150
+    lat: Optional[float] = 11.27037707675975
+    lng: Optional[float] = 77.60352284059195
+    allowedRadiusMeters: Optional[int] = 1000
     geofencePolygon: Optional[List[Dict[str, float]]] = None
 
 
 class SmartHoursUpdateRequest(BaseModel):
-    expectedHoursPerDay: Optional[int] = 8
-    graceCheckInMinutes: Optional[int] = 15
-    standardStartTime: Optional[str] = "09:00 AM"
-    flexibleWindowMinutes: Optional[int] = 180
+    expectedHoursPerDay: Optional[int] = None
+    graceCheckInMinutes: Optional[int] = None
+    standardStartTime: Optional[str] = None
+    flexibleWindowMinutes: Optional[int] = None

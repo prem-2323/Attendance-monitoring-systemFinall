@@ -32,6 +32,8 @@ export interface ReportAggregates {
   lateCount: number;
   absentCount: number;
   leaveCount: number;
+  inProgressCount?: number;
+  flexibleShiftCount?: number;
   totalRecords: number;
   avgAttendance: number;
 }

@@ -26,6 +26,7 @@ from backend.services.auth_service import (
     generate_otp,
     serialize_user,
 )
+from backend.services.face_detector import extract_face_embedding_from_b64
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
@@ -197,6 +198,15 @@ async def register_employee(payload: EmployeeRegisterRequest):
             detail=f"Conflict: ID '{employee_id}' and email '{email}' belong to different existing users.",
         )
 
+    # ── Real Facial Biometric Embedding Extraction ──────────────────────────
+    raw_b64 = (payload.faceImageBase64 or "").strip()
+    if not raw_b64 and payload.avatarUrl and payload.avatarUrl.startswith("data:image"):
+        raw_b64 = payload.avatarUrl.strip()
+
+    face_embedding, clean_avatar = extract_face_embedding_from_b64(raw_b64)
+    has_face = face_embedding is not None or bool(payload.faceRegistered)
+    final_avatar = clean_avatar or payload.avatarUrl or ""
+
     existing = existing_by_email or existing_by_id
     if existing:
         update_doc = {
@@ -207,26 +217,36 @@ async def register_employee(payload: EmployeeRegisterRequest):
             "department": payload.department or existing.get("department", "Engineering"),
             "managerId": payload.managerId or existing.get("managerId"),
             "managerName": payload.managerName or existing.get("managerName", ""),
-            "faceRegistered": bool(payload.faceRegistered),
-            "faceVector": payload.faceVector or ("VEC-128-ENROLLED-PASSIVE" if payload.faceRegistered else existing.get("faceVector")),
-            "avatarUrl": payload.avatarUrl or existing.get("avatarUrl", ""),
+            "faceRegistered": has_face,
+            "faceVector": f"VEC-128-{employee_id}" if has_face else existing.get("faceVector"),
+            "avatarUrl": final_avatar or existing.get("avatarUrl", ""),
         }
+        if face_embedding is not None:
+            update_doc["faceEmbedding"] = face_embedding
+
         if payload.password and payload.password.strip():
             update_doc["password_hash"] = hash_password(payload.password.strip())
         users_collection.update_one({"_id": existing["_id"]}, {"$set": update_doc})
         updated = users_collection.find_one({"_id": existing["_id"]})
         if employees_collection is not None:
+            emp_sync = {
+                "employee_id": employee_id,
+                "name": payload.name.strip(),
+            }
+            if face_embedding is not None:
+                emp_sync["face_embedding"] = face_embedding
+                emp_sync["face_image"] = final_avatar
             employees_collection.update_one(
                 {"employee_id": employee_id},
-                {"$set": {"employee_id": employee_id, "name": payload.name.strip()}},
+                {"$set": emp_sync},
                 upsert=True,
             )
-        logger.info(f"[Auth] Employee profile synced/re-enrolled: {email}")
+        logger.info(f"[Auth] Employee profile synced/re-enrolled with face biometrics: {email}")
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content={
                 "success": True,
-                "message": f"Employee '{payload.name}' enrolled & updated successfully.",
+                "message": f"Employee '{payload.name}' enrolled & biometric face vector registered successfully.",
                 "user": serialize_user(updated),
             },
         )
@@ -244,29 +264,33 @@ async def register_employee(payload: EmployeeRegisterRequest):
         "title": "Engineer",
         "active": True,
         "joinDate": datetime.now().strftime("%Y-%m-%d"),
-        "faceRegistered": bool(payload.faceRegistered),
-        "faceVector": payload.faceVector or ("VEC-128-ENROLLED-PASSIVE" if payload.faceRegistered else None),
-        "avatarUrl": payload.avatarUrl or "",
+        "faceRegistered": has_face,
+        "faceVector": f"VEC-128-{employee_id}" if has_face else None,
+        "avatarUrl": final_avatar,
         "password_hash": hash_password(payload.password or "password123"),
         "created_at": datetime.now().isoformat(),
     }
+    if face_embedding is not None:
+        emp_doc["faceEmbedding"] = face_embedding
 
     try:
         users_collection.insert_one(emp_doc)
         # Also sync to employees collection for facial recognition attendance pipeline
         if employees_collection is not None:
+            emp_sync = {
+                "employee_id": employee_id,
+                "name": payload.name.strip(),
+                "created_at": datetime.now().strftime("%Y-%m-%d"),
+            }
+            if face_embedding is not None:
+                emp_sync["face_embedding"] = face_embedding
+                emp_sync["face_image"] = final_avatar
             employees_collection.update_one(
                 {"employee_id": employee_id},
-                {
-                    "$set": {
-                        "employee_id": employee_id,
-                        "name": payload.name.strip(),
-                        "created_at": datetime.now().strftime("%Y-%m-%d"),
-                    }
-                },
+                {"$set": emp_sync},
                 upsert=True,
             )
-        logger.info(f"[Auth] Employee registered: {emp_doc['email']}")
+        logger.info(f"[Auth] Employee registered with biometric face vector: {emp_doc['email']}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insertion failed: {str(e)}")
 

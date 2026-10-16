@@ -19,8 +19,10 @@ __pycache__/
 dist/
 build/
 
-# Logs & OS files
+# Logs & OS & DB files
 *.log
+*.db
+attendance.db
 .DS_Store
 Thumbs.db
 

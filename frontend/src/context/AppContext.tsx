@@ -65,6 +65,7 @@ interface AppContextType {
     distanceMeters: number;
     withinRadius: boolean;
     livenessVerified: boolean;
+    faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
   }) => Promise<{ success: boolean; message: string; record?: AttendanceRecord }>;
@@ -124,8 +125,8 @@ const STORAGE_KEYS = {
   OFFICE: 'smart_attend_office_v2',
 };
 
-const MOCK_EMP_IDS = new Set(['EMP001', 'EMP002', 'EMP003', 'EMP099']);
-const isRealRecord = (empId?: string) => !empId || !MOCK_EMP_IDS.has(empId.trim().toUpperCase());
+// All records in MongoDB Atlas and state are live active records
+const isRealRecord = (_empId?: string) => true;
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
@@ -425,6 +426,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatarUrl: employeeData.avatarUrl,
         faceRegistered: employeeData.faceRegistered,
         faceVector: employeeData.faceVector,
+        faceImageBase64: employeeData.faceImageBase64 || employeeData.avatarUrl,
       });
 
       setUsers((prev) => [created, ...prev.filter((u) => u.employeeId !== created.employeeId)]);
@@ -565,6 +567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     distanceMeters,
     withinRadius,
     livenessVerified,
+    faceImageBase64,
     latitude,
     longitude,
   }: {
@@ -573,6 +576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     distanceMeters: number;
     withinRadius: boolean;
     livenessVerified: boolean;
+    faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
   }): Promise<{ success: boolean; message: string; record?: AttendanceRecord }> => {
@@ -602,6 +606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         distanceMeters,
         withinRadius,
         livenessVerified,
+        faceImageBase64,
         latitude,
         longitude,
         locationName: officeLocation.name,

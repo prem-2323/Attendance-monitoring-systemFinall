@@ -79,30 +79,20 @@ async def get_attendance_reports(
         raw_records = list(cursor)
         records = [_clean_doc(r) for r in raw_records]
 
-        # Calculate counts
-        present_count = 0
-        late_count = 0
-        leave_count = 0
-        absent_count = 0
-
-        for r in records:
-            st = r.get("status")
-            if st in ["Present", "Working"]:
-                present_count += 1
-            elif st == "Late":
-                late_count += 1
-            elif st == "On Leave":
-                leave_count += 1
-            elif st == "Absent":
-                absent_count += 1
+        # Calculate counts (flexible shift counts as present; in-progress never absent)
+        from backend.services.smart_hours import count_statuses as _count_statuses
+        _counts = _count_statuses(records)
+        present_count = _counts["presentDays"]
+        late_count = _counts["lateDays"]
+        leave_count = _counts["leaveDays"]
+        absent_count = _counts["absentDays"]
+        in_progress_count = _counts["inProgressDays"]
+        flexible_count = _counts["flexibleShiftDays"]
 
         total_records = len(records)
 
-        # Calculate avg attendance rate: (Present + Late) / totalRecords * 100
-        if total_records > 0:
-            avg_attendance = round(((present_count + late_count) / total_records) * 100, 1)
-        else:
-            avg_attendance = 100.0
+        # Attendance rate includes flexible + in-progress as attending.
+        avg_attendance = _counts["attendancePercentage"] if total_records > 0 else 100.0
 
         # Calculate total employees matching department
         emp_filter: Dict[str, Any] = {"role": "employee", "active": True}
@@ -137,6 +127,8 @@ async def get_attendance_reports(
                 "lateCount": late_count,
                 "absentCount": absent_count,
                 "leaveCount": leave_count,
+                "inProgressCount": in_progress_count,
+                "flexibleShiftCount": flexible_count,
                 "totalRecords": total_records,
                 "avgAttendance": avg_attendance,
             },

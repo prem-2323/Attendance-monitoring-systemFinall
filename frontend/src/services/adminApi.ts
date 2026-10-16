@@ -51,6 +51,7 @@ export interface AddEmployeePayload {
   avatarUrl?: string;
   faceRegistered?: boolean;
   faceVector?: string;
+  faceImageBase64?: string;
 }
 
 export interface AddManagerPayload {

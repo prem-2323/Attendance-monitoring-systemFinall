@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { employeeApi } from '../../services/employeeApi';
 import { SafeImage } from '../common/SafeImage';
 import {
   OFFICE_GEOFENCE_POLYGON,
@@ -35,7 +36,10 @@ export const EmployeeMarkAttendance: React.FC = () => {
   // Auto-mark mode state (enabled by default as requested)
   const [autoMarkEnabled, setAutoMarkEnabled] = useState<boolean>(true);
   const [personDetected, setPersonDetected] = useState<boolean>(false);
-  const [autoCatchCountdown, setAutoCatchCountdown] = useState<number>(3); // 3-second auto-catch countdown
+  const [isFaceMismatch, setIsFaceMismatch] = useState<boolean>(false);
+  const [faceScanMessage, setFaceScanMessage] = useState<string>('Looking for face...');
+  const [detectedConfidence, setDetectedConfidence] = useState<number | null>(null);
+  const isDetectingRef = useRef<boolean>(false);
 
   // Camera stream
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -60,6 +64,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
+  const [isRefreshingGps, setIsRefreshingGps] = useState<boolean>(false);
 
   // Ref mirror so staged-timeout callbacks never read a stale closure
   const geoRef = useRef<{ inside: boolean; lat: number | null; lng: number | null; dist: number }>({
@@ -107,8 +112,8 @@ export const EmployeeMarkAttendance: React.FC = () => {
     };
   }, [useVirtualCamera]);
 
-  // Handle GPS location — point-in-polygon test against the office box
-  useEffect(() => {
+  // Retrieve original device GPS coordinates via browser Geolocation API
+  const requestOriginalDeviceLocation = useCallback(() => {
     const failClosed = (msg: string) => {
       console.warn('Geolocation unavailable:', msg);
       setCalculatedDistance(0);
@@ -117,12 +122,15 @@ export const EmployeeMarkAttendance: React.FC = () => {
       setUserLng(null);
       setGpsError(msg);
       geoRef.current = { inside: false, lat: null, lng: null, dist: 0 };
+      setIsRefreshingGps(false);
     };
 
     if (!navigator.geolocation) {
       failClosed('Geolocation is not supported on this device.');
       return;
     }
+
+    setIsRefreshingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
@@ -131,34 +139,61 @@ export const EmployeeMarkAttendance: React.FC = () => {
           officeLocation.geofencePolygon && officeLocation.geofencePolygon.length >= 3
             ? officeLocation.geofencePolygon
             : OFFICE_GEOFENCE_POLYGON;
-        const inside = isInsideGeofenceBox(lat, lng, polygon);
-        const dist = Math.round(haversineMeters(lat, lng, OFFICE_BOX_CENTER.lat, OFFICE_BOX_CENTER.lng));
+        const centerLat = officeLocation.lat ?? OFFICE_BOX_CENTER.lat;
+        const centerLng = officeLocation.lng ?? OFFICE_BOX_CENTER.lng;
+        const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
+        const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+        const insideBox = isInsideGeofenceBox(lat, lng, polygon);
+        const inside = insideBox || dist <= radiusLimit;
 
         setCalculatedDistance(dist);
         setWithinOfficeRadius(inside);
         setUserLat(lat);
         setUserLng(lng);
-        setGpsError(inside ? '' : 'Outside office geofence box.');
+        setGpsError(inside ? '' : `Outside office geofence (${dist}m away, allowed radius: ${radiusLimit}m).`);
         geoRef.current = { inside, lat, lng, dist };
+        setIsRefreshingGps(false);
       },
       (err) => {
-        failClosed('Location access denied or unavailable — cannot verify office box.');
+        failClosed('Location access denied or unavailable — please allow device GPS access.');
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [officeLocation]);
 
-  // Quick Helper: Simulate / Align with Office Box (for demo/testing)
-  const handleAlignOfficeGps = () => {
-    const lat = OFFICE_BOX_CENTER.lat;
-    const lng = OFFICE_BOX_CENTER.lng;
-    setCalculatedDistance(12);
-    setWithinOfficeRadius(true);
-    setUserLat(lat);
-    setUserLng(lng);
-    setGpsError('');
-    geoRef.current = { inside: true, lat, lng, dist: 12 };
-  };
+  // Read device GPS on mount and continuously watch position for live accuracy
+  useEffect(() => {
+    requestOriginalDeviceLocation();
+
+    if (navigator.geolocation && navigator.geolocation.watchPosition) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const polygon =
+            officeLocation.geofencePolygon && officeLocation.geofencePolygon.length >= 3
+              ? officeLocation.geofencePolygon
+              : OFFICE_GEOFENCE_POLYGON;
+          const centerLat = officeLocation.lat ?? OFFICE_BOX_CENTER.lat;
+          const centerLng = officeLocation.lng ?? OFFICE_BOX_CENTER.lng;
+          const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
+          const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+          const insideBox = isInsideGeofenceBox(lat, lng, polygon);
+          const inside = insideBox || dist <= radiusLimit;
+
+          setCalculatedDistance(dist);
+          setWithinOfficeRadius(inside);
+          setUserLat(lat);
+          setUserLng(lng);
+          setGpsError(inside ? '' : `Outside office geofence (${dist}m away, allowed radius: ${radiusLimit}m).`);
+          geoRef.current = { inside, lat, lng, dist };
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 0 }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [requestOriginalDeviceLocation, officeLocation]);
 
   // Perform Check In or Check Out API call
   const executeAttendanceSubmission = useCallback(async () => {
@@ -169,6 +204,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
 
     try {
       const geo = geoRef.current;
+      const frame = captureFrame();
       const result = await markAttendance({
         employeeId: currentUser.employeeId,
         isCheckOut: isCheckOutMode,
@@ -177,6 +213,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
         livenessVerified: true, // Face presence automatically validated
         latitude: geo.lat ?? userLat,
         longitude: geo.lng ?? userLng,
+        faceImageBase64: frame || undefined,
       });
 
       if (result.success) {
@@ -196,69 +233,186 @@ export const EmployeeMarkAttendance: React.FC = () => {
     }
   }, [currentUser, isSubmitting, isCheckOutMode, markAttendance, calculatedDistance, userLat, userLng]);
 
-  // AUTOMATIC PERSON DETECTION & ATTENDANCE CATCHING ENGINE
+  // Capture frame from video element scaled to 320x240 for high-speed AI inference
+  const captureFrame = useCallback((): string | null => {
+    const video = videoRef.current;
+    if (!video || !streamActive || video.videoWidth === 0 || video.videoHeight === 0) {
+      return null;
+    }
+    try {
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 320 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.65);
+    } catch {
+      return null;
+    }
+  }, [streamActive]);
+
+  // REAL AI FACE DETECTION & AUTOMATIC ATTENDANCE CATCHING ENGINE
   useEffect(() => {
     if (verificationStage === 'marked' || verificationStage === 'submitting') return;
-    if (!autoMarkEnabled) return;
     if (hasAutoSubmittedRef.current) return;
 
-    // Simulate optical camera face-presence discovery (takes 600ms once stream or sensor is live)
-    const detectionTimer = setTimeout(() => {
-      setPersonDetected(true);
-      setFaceDetectionStatus('checking');
-      setVerificationStage('catching');
+    const intervalId = setInterval(async () => {
+      if (isDetectingRef.current || isSubmitting || hasAutoSubmittedRef.current) return;
+      if (verificationStage === 'marked' || verificationStage === 'submitting') return;
 
-      // Step A: Catch face & verify presence (600ms)
-      setTimeout(() => {
-        setFaceDetectionStatus('verified');
-        setFaceRecognitionStatus('checking');
-        setLivenessStatus('checking');
+      const frame = captureFrame();
+      if (!frame) return;
 
-        // Step B: Match enrolled 128-D vector (700ms)
-        setTimeout(() => {
-          setFaceRecognitionStatus('verified');
-          setLivenessStatus('verified');
-          setGpsStatus('checking');
-          setVerificationStage('verifying');
+      isDetectingRef.current = true;
+      try {
+        const res = await employeeApi.detectFace(frame, currentUser?.employeeId);
+        if (res.faceDetected) {
+          if (res.faceMatched === false) {
+            // Live face detected, but does NOT match the registered employee!
+            setIsFaceMismatch(true);
+            setPersonDetected(true);
+            setFaceDetectionStatus('verified');
+            setFaceRecognitionStatus('pending');
+            setFaceScanMessage('This is not your face');
+            setErrorMessage(
+              res.message || 'This is not your face. Face biometric does not match the registered employee profile.'
+            );
+            if (verificationStage === 'catching' || verificationStage === 'verifying') {
+              setVerificationStage('scanning');
+            }
+            return;
+          }
 
-          // Step C: Check GPS box (500ms)
-          setTimeout(() => {
-            // If GPS is verified inside, immediately auto-mark
+          // Face matched with registered biometrics!
+          setIsFaceMismatch(false);
+          setPersonDetected(true);
+          setFaceDetectionStatus('verified');
+          setDetectedConfidence(res.confidence || 0.95);
+          setFaceScanMessage(`Human Face Locked (${Math.round((res.confidence || 0.95) * 100)}%)`);
+
+          if (autoMarkEnabled && !hasAutoSubmittedRef.current) {
+            setVerificationStage('catching');
+            setFaceRecognitionStatus('verified');
+            setLivenessStatus('verified');
+
+            // GPS Geofence Check
             if (geoRef.current.inside) {
               setGpsStatus('verified');
-              executeAttendanceSubmission();
+              setVerificationStage('verifying');
+              await executeAttendanceSubmission();
             } else {
-              // Outside geofence box
               setGpsStatus('pending');
+              const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+              const distMsg = geoRef.current.dist > 0 ? ` (${geoRef.current.dist}m away, allowed radius: ${radiusLimit}m)` : '';
               setErrorMessage(
-                'Outside office geofence box: attendance can only be marked inside premises. Click "Use Campus Location" below to align for testing.'
+                `Outside office geofence: attendance can only be marked within ${radiusLimit}m of premises.${distMsg}`
               );
               setVerificationStage('scanning');
             }
-          }, 500);
-        }, 700);
-      }, 600);
-    }, 800);
+          }
+        } else {
+          setIsFaceMismatch(false);
+          setPersonDetected(false);
+          setFaceDetectionStatus('pending');
+          setFaceScanMessage(res.message || 'No human face detected — position yourself in front of camera');
+          if (verificationStage === 'catching' || verificationStage === 'verifying') {
+            setVerificationStage('scanning');
+          }
+        }
+      } catch (err) {
+        console.warn('Face detection polling error:', err);
+      } finally {
+        isDetectingRef.current = false;
+      }
+    }, 750);
 
-    return () => clearTimeout(detectionTimer);
-  }, [autoMarkEnabled, verificationStage, executeAttendanceSubmission]);
+    return () => clearInterval(intervalId);
+  }, [
+    verificationStage,
+    autoMarkEnabled,
+    captureFrame,
+    currentUser,
+    isSubmitting,
+    executeAttendanceSubmission,
+    officeLocation,
+  ]);
+
+  // Manual fallback check
+  const handleManualMark = async () => {
+    if (isSubmitting || verificationStage === 'marked') return;
+    setErrorMessage('');
+    const frame = captureFrame();
+    if (!frame) {
+      setErrorMessage('Camera feed not ready. Please ensure your webcam is enabled and pointing at your face.');
+      return;
+    }
+    setIsSubmitting(true);
+    setVerificationStage('catching');
+    try {
+      const res = await employeeApi.detectFace(frame, currentUser?.employeeId);
+      if (!res.faceDetected) {
+        setIsFaceMismatch(false);
+        setPersonDetected(false);
+        setFaceDetectionStatus('pending');
+        setVerificationStage('scanning');
+        setErrorMessage('No human face detected in camera viewport. Please position your face inside the frame.');
+        return;
+      }
+
+      if (res.faceMatched === false) {
+        setIsFaceMismatch(true);
+        setPersonDetected(true);
+        setFaceDetectionStatus('verified');
+        setFaceRecognitionStatus('pending');
+        setVerificationStage('scanning');
+        setFaceScanMessage('This is not your face');
+        setErrorMessage(
+          res.message || 'This is not your face. Face biometric does not match the registered employee profile.'
+        );
+        return;
+      }
+
+      setIsFaceMismatch(false);
+      setPersonDetected(true);
+      setFaceDetectionStatus('verified');
+      setFaceRecognitionStatus('verified');
+      setLivenessStatus('verified');
+
+      if (geoRef.current.inside) {
+        setGpsStatus('verified');
+        await executeAttendanceSubmission();
+      } else {
+        setGpsStatus('pending');
+        const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+        const distMsg = geoRef.current.dist > 0 ? ` (${geoRef.current.dist}m away, allowed radius: ${radiusLimit}m)` : '';
+        setErrorMessage(`Outside office geofence: attendance can only be marked within ${radiusLimit}m of premises.${distMsg}`);
+        setVerificationStage('scanning');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Reset and Re-scan
   const handleResetAndRescan = () => {
     hasAutoSubmittedRef.current = false;
     setErrorMessage('');
+    setIsFaceMismatch(false);
     setPersonDetected(false);
     setVerificationStage('scanning');
     setFaceDetectionStatus('pending');
     setFaceRecognitionStatus('pending');
     setLivenessStatus('pending');
     setGpsStatus('pending');
+    setFaceScanMessage('Align face inside frame');
   };
 
   const steps = [
     { title: 'Optical Sensor', status: streamActive || useVirtualCamera ? 'verified' : 'pending' },
     { title: 'Person Detected', status: faceDetectionStatus },
-    { title: 'Face Match (128-D)', status: faceRecognitionStatus },
+    { title: 'Face Match (128-D)', status: isFaceMismatch ? 'pending' : faceRecognitionStatus },
     { title: 'GPS Geofence', status: gpsStatus },
     { title: 'Marked as Present', status: verificationStage === 'marked' ? 'verified' : 'pending' },
   ];
@@ -272,10 +426,13 @@ export const EmployeeMarkAttendance: React.FC = () => {
           {!withinOfficeRadius && (
             <button
               type="button"
-              onClick={handleAlignOfficeGps}
-              className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 cursor-pointer transition-colors shadow-xs"
+              onClick={requestOriginalDeviceLocation}
+              disabled={isRefreshingGps}
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-slate-800 cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+              title="Query device GPS hardware"
             >
-              Align Campus GPS (Demo)
+              <RefreshCw className={`h-3 w-3 ${isRefreshingGps ? 'animate-spin' : ''}`} />
+              <span>{isRefreshingGps ? 'Checking GPS...' : 'Refresh GPS'}</span>
             </button>
           )}
           <button
@@ -389,8 +546,8 @@ export const EmployeeMarkAttendance: React.FC = () => {
                   {verificationStage === 'marked'
                     ? 'Attendance Successfully Recorded'
                     : personDetected
-                    ? 'Person Available — Locking Identity...'
-                    : 'Camera Active — Waiting for Person in Front...'}
+                    ? 'Human Face Verified — Locking Identity...'
+                    : `Camera Active — ${faceScanMessage}`}
                 </span>
               </div>
 
@@ -433,10 +590,10 @@ export const EmployeeMarkAttendance: React.FC = () => {
                     />
                   </div>
                   <span className="text-xs font-semibold text-emerald-300">
-                    Optical Sensor Active
+                    Optical Sensor Standby
                   </span>
                   <span className="text-[11px] text-slate-400 mt-1 font-normal">
-                    Automatic Face Presence Detector
+                    Camera access required for live facial verification
                   </span>
                 </div>
               )}
@@ -444,24 +601,49 @@ export const EmployeeMarkAttendance: React.FC = () => {
               {/* Real-time Face Detection Frame Brackets */}
               <div
                 className={`absolute inset-10 rounded-2xl border-2 transition-all duration-300 pointer-events-none ${
-                  personDetected
+                  isFaceMismatch
+                    ? 'border-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.45)]'
+                    : personDetected
                     ? 'border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                     : 'border-dashed border-emerald-400/40'
                 }`}
               >
-                <div className="absolute top-0 left-0 h-5 w-5 border-t-3 border-l-3 border-emerald-400" />
-                <div className="absolute top-0 right-0 h-5 w-5 border-t-3 border-r-3 border-emerald-400" />
-                <div className="absolute bottom-0 left-0 h-5 w-5 border-b-3 border-l-3 border-emerald-400" />
-                <div className="absolute bottom-0 right-0 h-5 w-5 border-b-3 border-r-3 border-emerald-400" />
+                <div className={`absolute top-0 left-0 h-5 w-5 border-t-3 border-l-3 ${isFaceMismatch ? 'border-rose-500' : 'border-emerald-400'}`} />
+                <div className={`absolute top-0 right-0 h-5 w-5 border-t-3 border-r-3 ${isFaceMismatch ? 'border-rose-500' : 'border-emerald-400'}`} />
+                <div className={`absolute bottom-0 left-0 h-5 w-5 border-b-3 border-l-3 ${isFaceMismatch ? 'border-rose-500' : 'border-emerald-400'}`} />
+                <div className={`absolute bottom-0 right-0 h-5 w-5 border-b-3 border-r-3 ${isFaceMismatch ? 'border-rose-500' : 'border-emerald-400'}`} />
 
                 {/* Target reticle inside face box */}
-                {personDetected && (
+                {isFaceMismatch ? (
+                  <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-rose-950/90 px-2 py-0.5 text-[10px] font-bold text-rose-300 backdrop-blur-xs border border-rose-500/50">
+                    <AlertCircle className="h-3 w-3 text-rose-400 animate-pulse" />
+                    <span>THIS IS NOT YOUR FACE · ACCESS DENIED</span>
+                  </div>
+                ) : personDetected ? (
                   <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-emerald-950/80 px-2 py-0.5 text-[10px] font-bold text-emerald-300 backdrop-blur-xs border border-emerald-500/40">
                     <UserCheck className="h-3 w-3 text-emerald-400" />
-                    <span>TARGET LOCKED · {currentUser?.name}</span>
+                    <span>HUMAN FACE LOCKED · {currentUser?.name}</span>
+                  </div>
+                ) : (
+                  <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold text-amber-300 backdrop-blur-xs border border-amber-500/30">
+                    <ScanFace className="h-3 w-3 text-amber-400 animate-pulse" />
+                    <span>{faceScanMessage}</span>
                   </div>
                 )}
               </div>
+
+              {/* High-visibility "This is not your face" overlay alert */}
+              {isFaceMismatch && (
+                <div className="absolute bottom-4 left-4 right-4 rounded-xl border border-rose-500/80 bg-rose-950/95 backdrop-blur-md p-3 text-center text-white shadow-2xl animate-in zoom-in-95 pointer-events-none">
+                  <div className="flex items-center justify-center gap-2 text-rose-300 font-extrabold text-xs uppercase tracking-wider">
+                    <AlertCircle className="h-4 w-4 text-rose-400 animate-pulse" />
+                    <span>This is not your face</span>
+                  </div>
+                  <p className="text-[11px] text-rose-200 mt-0.5">
+                    Live face does not match the registered profile for {currentUser?.name}. Attendance blocked.
+                  </p>
+                </div>
+              )}
 
               {/* Laser Scanning Beam (during scanning/verifying) */}
               {verificationStage !== 'marked' && (
@@ -522,12 +704,12 @@ export const EmployeeMarkAttendance: React.FC = () => {
                 ) : (
                   <button
                     type="button"
-                    onClick={executeAttendanceSubmission}
+                    onClick={handleManualMark}
                     disabled={isSubmitting}
                     className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                   >
                     <ScanFace className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>{isSubmitting ? 'Marking...' : 'Mark Now'}</span>
+                    <span>{isSubmitting ? 'Verifying Face...' : 'Mark Now'}</span>
                   </button>
                 )}
               </div>
@@ -570,13 +752,17 @@ export const EmployeeMarkAttendance: React.FC = () => {
               <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <div>
                   <span className="font-semibold text-slate-800">Identity Match</span>
-                  <div className="text-[10px] text-slate-400">128-D ResNet embedding distance &lt; 0.55</div>
+                  <div className="text-[10px] text-slate-400">128-D ResNet embedding distance &lt; 0.52</div>
                 </div>
-                {faceRecognitionStatus === 'pending' && <span className="text-slate-400">Waiting</span>}
-                {faceRecognitionStatus === 'checking' && (
+                {isFaceMismatch ? (
+                  <span className="text-rose-600 font-bold flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 text-rose-500" /> Not Your Face ✗
+                  </span>
+                ) : faceRecognitionStatus === 'pending' ? (
+                  <span className="text-slate-400">Waiting</span>
+                ) : faceRecognitionStatus === 'checking' ? (
                   <span className="text-blue-600 font-semibold animate-pulse">Matching 128-D...</span>
-                )}
-                {faceRecognitionStatus === 'verified' && (
+                ) : (
                   <span className="text-emerald-600 font-semibold flex items-center gap-1">
                     <Check className="h-3.5 w-3.5 stroke-3" /> Match 98.4% ✓
                   </span>
@@ -632,26 +818,30 @@ export const EmployeeMarkAttendance: React.FC = () => {
                   <span>{officeLocation.name}</span>
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Geofence: <strong>Office Polygon Box</strong>
+                  Geofence: <strong>Office Polygon & {officeLocation.allowedRadiusMeters || 1000}m Radius</strong>
                   {userLat !== null && userLng !== null && (
                     <span> · {calculatedDistance}m from centroid</span>
                   )}
                 </div>
                 {withinOfficeRadius ? (
-                  <div className="text-[11px] font-semibold text-emerald-600">
-                    Status: Inside office box ✓
+                  <div className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Status: Within allowed perimeter ✓ ({calculatedDistance}m / {officeLocation.allowedRadiusMeters || 1000}m)</span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <span className="text-[11px] font-semibold text-rose-600">
-                      Outside office box
+                      Outside allowed {officeLocation.allowedRadiusMeters || 1000}m radius {calculatedDistance > 0 ? `(${calculatedDistance}m)` : ''}
                     </span>
                     <button
                       type="button"
-                      onClick={handleAlignOfficeGps}
-                      className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-slate-800 cursor-pointer"
+                      onClick={requestOriginalDeviceLocation}
+                      disabled={isRefreshingGps}
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+                      title="Re-read live device GPS"
                     >
-                      Align GPS (Demo)
+                      <RefreshCw className={`h-2.5 w-2.5 ${isRefreshingGps ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshingGps ? 'Checking...' : 'Refresh GPS'}</span>
                     </button>
                   </div>
                 )}

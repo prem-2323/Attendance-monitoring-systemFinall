@@ -112,7 +112,7 @@ export const ManagerEmployees: React.FC = () => {
                 (a) => a.employeeId === emp.employeeId
               );
               const presentCount = empAttendance.filter(
-                (a) => a.status === 'Present' || a.status === 'Working' || a.status === 'Late'
+                (a) => a.status === 'Present' || a.status === 'Working' || a.status === 'Late' || (a.status as string) === 'Present — Flexible Shift' || (a.status as string) === 'In Progress'
               ).length;
               const totalDays = Math.max(1, empAttendance.length);
               attRate = Math.round((presentCount / totalDays) * 100);

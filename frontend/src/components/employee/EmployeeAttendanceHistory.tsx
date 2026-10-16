@@ -18,15 +18,24 @@ import { employeeApi } from '../../services/employeeApi';
 export const EmployeeAttendanceHistory: React.FC = () => {
   const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
   const now = new Date();
-  const availableMonths = [0, 1, 2, 3].map((i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    return {
-      label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-      prefix: d.toISOString().slice(0, 7),
-    };
-  });
+  const formatYearMonth = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  };
 
-  const [selectedMonth, setSelectedMonth] = useState(availableMonths[0]?.label || '');
+  const availableMonths = [
+    { label: 'All Records', prefix: '' },
+    ...[0, 1, 2, 3, 4, 5].map((i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      return {
+        label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        prefix: formatYearMonth(d),
+      };
+    }),
+  ];
+
+  const [selectedMonth, setSelectedMonth] = useState(availableMonths[1]?.label || 'All Records');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
   const [liveRecords, setLiveRecords] = useState<AttendanceRecord[] | null>(null);
@@ -35,6 +44,8 @@ export const EmployeeAttendanceHistory: React.FC = () => {
     lateDays: number;
     leaveDays: number;
     absentDays: number;
+    inProgressDays?: number;
+    flexibleShiftDays?: number;
     attendancePercentage: number;
   } | null>(null);
 
@@ -89,18 +100,27 @@ export const EmployeeAttendanceHistory: React.FC = () => {
     return statusFilter === 'All' || rec.status === statusFilter;
   });
 
-  // Calculate statistics dynamically from real Atlas records
-  const presentDays = liveStats?.presentDays ?? allRecords.filter((a) => a.status === 'Present' || a.status === 'Working').length;
+  // Calculate statistics: flexible shift counts as present; in-progress never absent.
+  const FLEX = 'Present — Flexible Shift';
+  const INPROG = 'In Progress';
+  const isPresentLike = (s: string) => s === 'Present' || s === 'Working' || s === FLEX;
+  const presentDays = liveStats?.presentDays ?? allRecords.filter((a) => isPresentLike(a.status)).length;
   const lateDays = liveStats?.lateDays ?? allRecords.filter((a) => a.status === 'Late').length;
   const leaveDays = liveStats?.leaveDays ?? allRecords.filter((a) => a.status === 'On Leave').length;
   const absentDays = liveStats?.absentDays ?? allRecords.filter((a) => a.status === 'Absent').length;
-  const totalDays = Math.max(1, presentDays + lateDays + leaveDays + absentDays);
-  const attendancePercentage = liveStats?.attendancePercentage ?? (Math.round(((presentDays + lateDays) / totalDays) * 1000) / 10);
+  const inProgressDays = liveStats?.inProgressDays ?? allRecords.filter((a) => a.status === INPROG).length;
+  const flexibleDays = liveStats?.flexibleShiftDays ?? allRecords.filter((a) => a.status === FLEX).length;
+  const totalDays = Math.max(1, presentDays + lateDays + leaveDays + absentDays + inProgressDays);
+  const attendancePercentage = liveStats?.attendancePercentage ?? (Math.round(((presentDays + lateDays + inProgressDays) / totalDays) * 1000) / 10);
 
   const getStatusBadge = (status: AttendanceStatus) => {
     switch (status) {
       case 'Present':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+      case 'Present — Flexible Shift':
+        return 'bg-teal-50 text-teal-700 border-teal-200/80';
+      case 'In Progress':
+        return 'bg-sky-50 text-sky-700 border-sky-200/80';
       case 'Working':
         return 'bg-blue-50 text-blue-700 border-blue-200/80';
       case 'Late':
@@ -161,7 +181,7 @@ export const EmployeeAttendanceHistory: React.FC = () => {
             className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-xs focus:outline-none focus:border-blue-600 cursor-pointer"
           >
             {availableMonths.map((m) => (
-              <option key={m.prefix} value={m.label}>
+              <option key={m.label} value={m.label}>
                 {m.label}
               </option>
             ))}
@@ -211,7 +231,7 @@ export const EmployeeAttendanceHistory: React.FC = () => {
           <div className="text-2xl font-bold text-emerald-600 mt-1">
             {isLoading ? <Skeleton className="h-7 w-10" /> : presentDays}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">On-time days</div>
+          <div className="text-[11px] text-slate-400 mt-1">On-time + flex-shift days{flexibleDays > 0 ? ` (flex: ${flexibleDays})` : ''}{inProgressDays > 0 ? ` · in progress: ${inProgressDays}` : ''}</div>
         </div>
 
         {/* Compact KPI Card: Late */}
@@ -254,6 +274,8 @@ export const EmployeeAttendanceHistory: React.FC = () => {
             >
               <option value="All">All Statuses</option>
               <option value="Present">Present</option>
+              <option value="Present — Flexible Shift">Present — Flexible Shift</option>
+              <option value="In Progress">In Progress</option>
               <option value="Late">Late</option>
               <option value="On Leave">Leave</option>
               <option value="Absent">Absent</option>

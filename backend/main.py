@@ -13,9 +13,12 @@ from fastapi.responses import FileResponse
 
 # Ensure project root directory is in sys.path
 _ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(_ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(_ROOT_DIR))
+_BACKEND_DIR = Path(__file__).resolve().parent
+for _p in [str(_ROOT_DIR), str(_BACKEND_DIR)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
+from contextlib import asynccontextmanager
 from backend.config import API_TITLE, API_DESCRIPTION, API_VERSION
 from backend.routes import employee as employee_router
 from backend.routes import attendance as attendance_router
@@ -24,6 +27,7 @@ from backend.routes import admin as admin_router
 from backend.routes import employee_portal as employee_portal_router
 from backend.routes import manager as manager_router
 from backend.routes import reports as reports_router
+from backend.app.attendance import router as app_attendance_router
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -32,6 +36,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Lifespan for Background Absence Scheduler ─────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background absence checker
+    try:
+        from backend.app.absence_scheduler import start_scheduler, scheduler
+        start_scheduler()
+        logger.info("[Scheduler] Scheduled absence checker active (MongoDB Atlas).")
+    except Exception as e:
+        logger.warning(f"[AppInit] Note starting absence scheduler: {e}")
+    yield
+    try:
+        from backend.app.absence_scheduler import scheduler
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+            logger.info("[Scheduler] Scheduler shut down.")
+    except Exception:
+        pass
+
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title=API_TITLE,
@@ -39,6 +62,7 @@ app = FastAPI(
     version=API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ── CORS — allow frontend served on same host ─────────────────────────────────
@@ -63,6 +87,8 @@ app.include_router(reports_router.router, prefix="/api/reports")
 app.include_router(reports_router.router, prefix="/reports")
 app.include_router(employee_router.router)
 app.include_router(attendance_router.router)
+app.include_router(app_attendance_router)
+
 
 # ── Serve frontend static files ───────────────────────────────────────────────
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")

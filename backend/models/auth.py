@@ -39,6 +39,7 @@ class EmployeeRegisterRequest(BaseModel):
     faceRegistered: Optional[bool] = False
     faceVector: Optional[str] = None
     avatarUrl: Optional[str] = None
+    faceImageBase64: Optional[str] = None
 
 
 class LoginRequest(BaseModel):

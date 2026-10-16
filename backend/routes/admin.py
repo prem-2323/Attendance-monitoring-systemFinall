@@ -21,11 +21,13 @@ from backend.database import (
     attendance_collection,
     approval_audits_collection,
     settings_collection,
+    employees_collection,
     seed_initial_users,
     seed_initial_settings,
     seed_initial_attendance,
     seed_initial_audits,
 )
+from backend.services.face_detector import extract_face_embedding_from_b64
 from backend.models.admin import (
     AddEmployeeAdminRequest,
     AddManagerAdminRequest,
@@ -80,28 +82,21 @@ async def get_dashboard_stats():
 
         today_records = list(attendance_collection.find(today_query)) if attendance_collection is not None else []
 
-        present_count = 0
-        late_count = 0
-        on_leave_count = 0
-        absent_count = 0
+        from backend.services.smart_hours import count_statuses as _count_statuses
+        _counts = _count_statuses(today_records)
+        present_count = _counts["presentDays"]
+        late_count = _counts["lateDays"]
+        on_leave_count = _counts["leaveDays"]
+        absent_count = _counts["absentDays"]
+        in_progress_count = _counts["inProgressDays"]
 
-        for r in today_records:
-            st = r.get("status")
-            if st in ["Present", "Working"]:
-                present_count += 1
-            elif st == "Late":
-                late_count += 1
-            elif st == "On Leave":
-                on_leave_count += 1
-            elif st == "Absent":
-                absent_count += 1
-
-        # Any employee without a marked record is marked as Absent by default
-        untracked = max(0, total_employees - (present_count + late_count + on_leave_count + absent_count))
+        # Any employee without a marked record is Absent — but In Progress
+        # shifts are attending, never absent.
+        untracked = max(0, total_employees - (present_count + late_count + on_leave_count + absent_count + in_progress_count))
         absent_count += untracked
 
-        total_tracked = max(1, present_count + late_count + on_leave_count + absent_count)
-        present_pct = round(((present_count + late_count) / total_tracked) * 100)
+        total_tracked = max(1, present_count + late_count + on_leave_count + absent_count + in_progress_count)
+        present_pct = round(((present_count + late_count + in_progress_count) / total_tracked) * 100)
 
         # 3. Department breakdown
         dept_counts: Dict[str, int] = {}
@@ -160,6 +155,8 @@ async def get_dashboard_stats():
             "lateCount": late_count,
             "onLeaveCount": on_leave_count,
             "absentCount": absent_count,
+            "inProgressCount": in_progress_count,
+            "flexibleShiftDays": _counts.get("flexibleShiftDays", 0),
             "presentPct": present_pct,
             "departmentBreakdown": dept_counts,
             "recentActivities": recent_activities[:6],
@@ -193,6 +190,15 @@ async def create_employee(payload: AddEmployeeAdminRequest):
         if users_collection is None:
             raise HTTPException(status_code=503, detail="Database connection unavailable")
 
+        # Extract face embedding from faceImageBase64 or avatarUrl
+        raw_b64 = (payload.faceImageBase64 or "").strip()
+        if not raw_b64 and payload.avatarUrl and payload.avatarUrl.startswith("data:image"):
+            raw_b64 = payload.avatarUrl.strip()
+
+        face_embedding, clean_avatar = extract_face_embedding_from_b64(raw_b64)
+        has_face = face_embedding is not None or bool(payload.faceRegistered)
+        final_avatar = clean_avatar or payload.avatarUrl or ""
+
         # Check existing employee ID or email
         existing_emp = users_collection.find_one({
             "$or": [
@@ -207,17 +213,30 @@ async def create_employee(payload: AddEmployeeAdminRequest):
                 "phone": payload.phone or existing_emp.get("phone", "+91 "),
                 "department": payload.department or existing_emp.get("department", "Engineering"),
                 "managerName": payload.managerName or existing_emp.get("managerName", ""),
+                "faceRegistered": has_face,
+                "faceVector": f"VEC-128-{payload.employeeId.strip()}" if has_face else existing_emp.get("faceVector"),
             }
-            if payload.avatarUrl:
-                update_fields["avatarUrl"] = payload.avatarUrl
-            if payload.faceRegistered is not None:
-                update_fields["faceRegistered"] = payload.faceRegistered
-            if payload.faceVector:
-                update_fields["faceVector"] = payload.faceVector
+            if final_avatar:
+                update_fields["avatarUrl"] = final_avatar
+            if face_embedding is not None:
+                update_fields["faceEmbedding"] = face_embedding
 
             users_collection.update_one({"_id": existing_emp["_id"]}, {"$set": update_fields})
+            if employees_collection is not None:
+                emp_sync = {
+                    "employee_id": payload.employeeId.strip(),
+                    "name": payload.name.strip(),
+                }
+                if face_embedding is not None:
+                    emp_sync["face_embedding"] = face_embedding
+                    emp_sync["face_image"] = final_avatar
+                employees_collection.update_one(
+                    {"employee_id": payload.employeeId.strip()},
+                    {"$set": emp_sync},
+                    upsert=True,
+                )
             updated_emp = users_collection.find_one({"_id": existing_emp["_id"]})
-            logger.info(f"[Admin] Employee '{payload.employeeId}' synced successfully in MongoDB.")
+            logger.info(f"[Admin] Employee '{payload.employeeId}' synced with face biometrics successfully.")
             return _clean_doc(updated_emp or existing_emp)
 
         new_id = f"user-emp-{int(datetime.now().timestamp() * 1000) % 1000000}"
@@ -233,16 +252,32 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             "department": payload.department or "Engineering",
             "managerName": payload.managerName or "",
             "role": payload.role or "employee",
-            "avatarUrl": payload.avatarUrl or "",
-            "faceRegistered": payload.faceRegistered or False,
-            "faceVector": payload.faceVector or (f"face_vec_{int(datetime.now().timestamp())}_128d" if payload.faceRegistered else None),
+            "avatarUrl": final_avatar,
+            "faceRegistered": has_face,
+            "faceVector": f"VEC-128-{payload.employeeId.strip()}" if has_face else None,
             "joinDate": datetime.now().strftime("%Y-%m-%d"),
             "active": True,
             "title": f"Staff {payload.department}",
             "password_hash": default_pw,
         }
+        if face_embedding is not None:
+            new_doc["faceEmbedding"] = face_embedding
 
         users_collection.insert_one(new_doc)
+        if employees_collection is not None:
+            emp_sync = {
+                "employee_id": payload.employeeId.strip(),
+                "name": payload.name.strip(),
+                "created_at": datetime.now().strftime("%Y-%m-%d"),
+            }
+            if face_embedding is not None:
+                emp_sync["face_embedding"] = face_embedding
+                emp_sync["face_image"] = final_avatar
+            employees_collection.update_one(
+                {"employee_id": payload.employeeId.strip()},
+                {"$set": emp_sync},
+                upsert=True,
+            )
 
         # Also initialize an Absent record for today in attendance collection
         if attendance_collection is not None:
@@ -540,6 +575,7 @@ async def get_settings():
     """
     try:
         from backend.services.geofence import get_configured_polygon
+        from backend.config import OFFICE_RADIUS_METERS
         _box = get_configured_polygon()
         default_settings = {
             "officeLocation": {
@@ -547,7 +583,7 @@ async def get_settings():
                 "address": "Office Campus Premises, Tamil Nadu",
                 "lat": sum(p[0] for p in _box) / len(_box),
                 "lng": sum(p[1] for p in _box) / len(_box),
-                "allowedRadiusMeters": 150,
+                "allowedRadiusMeters": OFFICE_RADIUS_METERS,
             },
             "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in _box],
             "smartHoursConfig": {
@@ -625,17 +661,46 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
 @router.put("/settings/smart-hours")
 async def update_smart_hours_settings(payload: SmartHoursUpdateRequest):
     """
-    Updates smart hours policy parameters.
+    Updates smart hours policy parameters (validated; merges with existing).
     """
     try:
         if settings_collection is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
+        from backend.services.smart_hours import parse_time_to_minutes
+        existing = settings_collection.find_one({"key": "global_settings"}) or {}
+        current = existing.get("smartHoursConfig", {}) if isinstance(existing, dict) else {}
+
+        def _pick(name: str, default: Any):
+            val = getattr(payload, name, None)
+            if val is None:
+                return current.get(name, default)
+            return val
+
+        exp = _pick("expectedHoursPerDay", 8)
+        grace = _pick("graceCheckInMinutes", 15)
+        std = _pick("standardStartTime", "09:00 AM")
+        flex = _pick("flexibleWindowMinutes", 180)
+        try:
+            exp = max(1, min(24, int(exp)))
+        except (TypeError, ValueError):
+            exp = 8
+        try:
+            grace = max(0, min(180, int(grace)))
+        except (TypeError, ValueError):
+            grace = 15
+        try:
+            flex = max(0, min(720, int(flex)))
+        except (TypeError, ValueError):
+            flex = 180
+        if not isinstance(std, str) or parse_time_to_minutes(std) is None:
+            std = current.get("standardStartTime", "09:00 AM")
+
         update_dict = {
-            "expectedHoursPerDay": payload.expectedHoursPerDay,
-            "graceCheckInMinutes": payload.graceCheckInMinutes,
-            "standardStartTime": payload.standardStartTime,
-            "flexibleWindowMinutes": payload.flexibleWindowMinutes,
+            "expectedHoursPerDay": exp,
+            "graceCheckInMinutes": grace,
+            "standardStartTime": std,
+            "flexibleWindowMinutes": flex,
         }
 
         settings_collection.update_one(

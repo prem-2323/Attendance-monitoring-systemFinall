@@ -8,14 +8,14 @@ import { User, AttendanceRecord, LeaveRequest, ApprovalAudit, OfficeLocation } f
 export const DEFAULT_OFFICE: OfficeLocation = {
   name: 'Head Office Block',
   address: 'Office Campus Premises, Tamil Nadu',
-  lat: 11.144035200242794,
-  lng: 77.32559123601078,
-  allowedRadiusMeters: 150,
+  lat: 11.27037707675975,
+  lng: 77.60352284059195,
+  allowedRadiusMeters: Number((import.meta as any)?.env?.VITE_OFFICE_RADIUS_METERS || 1000),
   geofencePolygon: [
-    { lat: 11.144113653811853, lng: 77.32556489217428 },
-    { lat: 11.14405891876983, lng: 77.32565787042074 },
-    { lat: 11.143960395668193, lng: 77.32561572028234 },
-    { lat: 11.144007832721298, lng: 77.32552646116577 },
+    { lat: 11.270872464050166, lng: 77.60414913913843 },
+    { lat: 11.269939620797608, lng: 77.60419457796888 },
+    { lat: 11.26989802898974, lng: 77.60290714443924 },
+    { lat: 11.270798193201482, lng: 77.60284050082124 },
   ],
 };
 

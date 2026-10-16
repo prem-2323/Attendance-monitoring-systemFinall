@@ -20,15 +20,34 @@ _dlib_available = False
 
 
 def _load_model():
-    """Load dlib landmark predictor once."""
+    """Load dlib 68-point landmark predictor once."""
     global _predictor, _detector, _dlib_available
     if _predictor is not None:
         return
 
     try:
-        import dlib  # noqa: F401 — optional dependency
+        import dlib
 
-        if not os.path.exists(LANDMARK_MODEL):
+        model_path = None
+        search_paths = [
+            LANDMARK_MODEL,
+            os.path.join(os.getcwd(), "models", "shape_predictor_68_face_landmarks", "shape_predictor_68_face_landmarks.dat"),
+        ]
+        for p in search_paths:
+            if os.path.exists(p):
+                model_path = p
+                break
+
+        if not model_path:
+            try:
+                import face_recognition_models
+                candidate = face_recognition_models.pose_predictor_model_location()
+                if os.path.exists(candidate):
+                    model_path = candidate
+            except Exception:
+                pass
+
+        if not model_path:
             logger.warning(
                 "[Landmark] shape_predictor_68_face_landmarks.dat not found. "
                 "Alignment will use simple crop only."
@@ -36,9 +55,9 @@ def _load_model():
             return
 
         _detector = dlib.get_frontal_face_detector()
-        _predictor = dlib.shape_predictor(LANDMARK_MODEL)
+        _predictor = dlib.shape_predictor(model_path)
         _dlib_available = True
-        logger.info("[Landmark] dlib 68-point landmark model loaded.")
+        logger.info(f"[Landmark] dlib 68-point landmark model loaded from {model_path}.")
     except ImportError:
         logger.warning("[Landmark] dlib not installed. Using basic alignment fallback.")
 
@@ -104,14 +123,14 @@ def align_face(image_bgr: np.ndarray, box: tuple) -> np.ndarray:
         current_dist = np.linalg.norm(right_eye - left_eye)
         scale = desired_dist / (current_dist + 1e-6)
 
-        # Centre of the eyes
-        eye_centre = ((left_eye + right_eye) / 2).astype(int)
+        # Centre of the eyes (ensure python float tuple for OpenCV)
+        eye_centre = (float((left_eye[0] + right_eye[0]) / 2.0), float((left_eye[1] + right_eye[1]) / 2.0))
 
-        M = cv2.getRotationMatrix2D(tuple(eye_centre), angle, scale)
+        M = cv2.getRotationMatrix2D(eye_centre, float(angle), float(scale))
 
         # Translate so left eye lands on reference position
-        M[0, 2] += ALIGNED_SIZE[0] * LEFT_EYE_REF[0] - eye_centre[0]
-        M[1, 2] += ALIGNED_SIZE[1] * LEFT_EYE_REF[1] - eye_centre[1]
+        M[0, 2] += ALIGNED_SIZE[0] * float(LEFT_EYE_REF[0]) - eye_centre[0]
+        M[1, 2] += ALIGNED_SIZE[1] * float(LEFT_EYE_REF[1]) - eye_centre[1]
 
         aligned = cv2.warpAffine(image_bgr, M, ALIGNED_SIZE, flags=cv2.INTER_CUBIC)
         return cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
@@ -119,3 +138,23 @@ def align_face(image_bgr: np.ndarray, box: tuple) -> np.ndarray:
         logger.warning(f"[Landmark] Alignment failed, using simple crop: {e}")
         aligned = cv2.resize(face_crop, ALIGNED_SIZE)
         return cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
+
+
+def get_landmarks_68(image_bgr: np.ndarray, box: tuple) -> np.ndarray | None:
+    """
+    Extract all 68 facial landmark coordinates for the given face bounding box.
+    Returns: numpy array of shape (68, 2) or None if unavailable.
+    """
+    _load_model()
+    if not _dlib_available or _predictor is None:
+        return None
+    try:
+        import dlib
+        x, y, w, h = box
+        rect = dlib.rectangle(x, y, x + w, y + h)
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        shape = _predictor(gray, rect)
+        return np.array([[shape.part(i).x, shape.part(i).y] for i in range(68)])
+    except Exception as e:
+        logger.warning(f"[Landmark] get_landmarks_68 error: {e}")
+        return None

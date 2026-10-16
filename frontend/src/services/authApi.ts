@@ -53,6 +53,7 @@ export interface RegisterEmployeeData {
   faceRegistered?: boolean;
   faceVector?: string;
   avatarUrl?: string;
+  faceImageBase64?: string;
 }
 
 export interface AuthResponse {

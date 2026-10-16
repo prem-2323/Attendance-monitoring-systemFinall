@@ -23,6 +23,7 @@ export interface MarkAttendancePayload {
   livenessVerified: boolean;
   locationName?: string;
   faceVector?: string;
+  faceImageBase64?: string;
   /** Live GPS fix — server enforces the office geofence box from these. */
   latitude?: number | null;
   longitude?: number | null;
@@ -45,6 +46,8 @@ export interface EmployeeHistoryResponse {
     lateDays: number;
     leaveDays: number;
     absentDays: number;
+    inProgressDays?: number;
+    flexibleShiftDays?: number;
     attendancePercentage: number;
   };
 }
@@ -85,9 +88,67 @@ export interface SmartHoursResponse {
   completionPercent: number;
   targetHoursPerDay: number;
   smartPolicy: string;
+  dayStatus?: string;
+  arrivalStatus?: string;
+  isSimulated?: boolean;
+  actual?: {
+    checkIn: string;
+    checkOut?: string | null;
+    workedMinutes: number;
+    remainingMinutes: number;
+    meetsRequirement: boolean;
+  };
+  simulated?: {
+    checkIn: string;
+    anchorTime: string;
+    workedTime: string;
+    remainingTime: string;
+    completionPercent: number;
+    expectedCheckout: string;
+    note: string;
+  } | null;
+  smartConfig?: {
+    expectedHoursPerDay: number;
+    graceCheckInMinutes: number;
+    standardStartTime: string;
+    flexibleWindowMinutes: number;
+  };
+}
+
+export interface FaceDetectResponse {
+  faceDetected: boolean;
+  faceMatched?: boolean;
+  count: number;
+  box?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  confidence?: number;
+  message: string;
 }
 
 export const employeeApi = {
+  /**
+   * Real-time webcam frame face detection via backend OpenCV/dlib engine
+   */
+  async detectFace(imageBase64: string, employeeId?: string): Promise<FaceDetectResponse> {
+    try {
+      const res = await apiFetch('/face/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, employeeId }),
+      });
+      if (!res.ok) {
+        return { faceDetected: false, count: 0, message: 'Detection service unavailable' };
+      }
+      return await res.json();
+    } catch {
+      return { faceDetected: false, count: 0, message: 'Failed to contact face detector' };
+    }
+  },
+
   /**
    * Mark biometric check-in or check-out in MongoDB Atlas
    */
