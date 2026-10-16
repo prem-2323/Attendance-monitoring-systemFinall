@@ -23,6 +23,7 @@ build/
 *.log
 *.db
 attendance.db
+test_results_summary.json
 .DS_Store
 Thumbs.db
 
