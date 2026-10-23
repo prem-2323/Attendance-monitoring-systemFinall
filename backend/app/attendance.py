@@ -2,11 +2,9 @@
 Attendance Check-in and Inspection Endpoints.
 Operates exclusively with MongoDB Atlas collections.
 """
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from typing import Union, List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -25,11 +23,9 @@ from backend.database import (
     email_notifications_collection,
 )
 from backend.app.email_service import queue_attendance_emails, process_pending_emails
+from backend.services.timezone import india_now
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
-TZ = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
-
-
 class CheckInRequest(BaseModel):
     employee_id: Union[int, str] = Field(..., description="Employee ID or Code to check in")
 
@@ -81,7 +77,7 @@ def check_in(payload: CheckInRequest):
     emp_id = str(employee.get("employeeId") or employee.get("employee_id") or target_id_str)
     emp_name = str(employee.get("name") or employee.get("full_name") or "Employee")
 
-    now = datetime.now(TZ)
+    now = india_now()
     today_str = now.date().isoformat()
 
     # 2. Check for existing attendance record for today in MongoDB Atlas
@@ -107,7 +103,7 @@ def check_in(payload: CheckInRequest):
                         "status": "present",
                         "check_in": now.isoformat(),
                         "checkIn": now.strftime("%I:%M %p"),
-                        "updated_at": datetime.utcnow(),
+                        "updated_at": now,
                     }
                 },
             )
@@ -147,7 +143,7 @@ def check_in(payload: CheckInRequest):
         "checkIn": now.strftime("%I:%M %p"),
         "check_in": now.isoformat(),
         "verifiedBy": "Check-In API",
-        "created_at": datetime.utcnow(),
+        "created_at": now,
     }
 
     attendance_collection.insert_one(att_doc)

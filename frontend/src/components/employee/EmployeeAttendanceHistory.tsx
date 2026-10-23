@@ -14,23 +14,21 @@ import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
 import { Skeleton } from '../common/Skeleton';
 import { employeeApi } from '../../services/employeeApi';
+import { formatIndiaDate, getIndiaDateString } from '../../utils/dateTime';
 
 export const EmployeeAttendanceHistory: React.FC = () => {
   const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
-  const now = new Date();
-  const formatYearMonth = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  };
+  const [currentYear, currentMonth] = getIndiaDateString().split('-').map(Number);
 
   const availableMonths = [
     { label: 'All Records', prefix: '' },
     ...[0, 1, 2, 3, 4, 5].map((i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d = new Date(currentYear, currentMonth - 1 - i, 1);
+      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthDate = new Date(`${prefix}-15T12:00:00+05:30`);
       return {
-        label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-        prefix: formatYearMonth(d),
+        label: formatIndiaDate(monthDate, { month: 'long', year: 'numeric' }),
+        prefix,
       };
     }),
   ];

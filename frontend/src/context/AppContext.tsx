@@ -10,6 +10,7 @@ import {
   AttendanceStatus,
 } from '../types';
 import { DEFAULT_OFFICE, DEFAULT_OFFICE_LOCATIONS } from '../data/mockData';
+import { formatIndiaTime, getIndiaDateString } from '../utils/dateTime';
 
 import { authApi } from '../services/authApi';
 import { adminApi } from '../services/adminApi';
@@ -494,7 +495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `user-emp-${Date.now().toString().slice(-4)}`,
         ...employeeData,
         role: (employeeData.role as UserRole) || 'employee',
-        joinDate: new Date().toISOString().split('T')[0],
+        joinDate: getIndiaDateString(),
         active: true,
       };
       setUsers((prev) => [fallbackUser, ...prev.filter((u) => u.employeeId !== fallbackUser.employeeId)]);
@@ -535,7 +536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `user-mgr-${Date.now().toString().slice(-4)}`,
         ...managerData,
         role: 'manager',
-        joinDate: new Date().toISOString().split('T')[0],
+        joinDate: getIndiaDateString(),
         active: true,
       };
       setUsers((prev) => [fallbackMgr, ...prev.filter((u) => u.employeeId !== fallbackMgr.employeeId)]);
@@ -579,7 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...adminData,
       id: newId,
       role: 'admin',
-      joinDate: new Date().toISOString().split('T')[0],
+      joinDate: getIndiaDateString(),
       active: true,
       faceRegistered: adminData.faceRegistered ?? false,
       avatarUrl: adminData.avatarUrl?.trim() ? adminData.avatarUrl : undefined,
@@ -817,8 +818,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLeaveRequests((prev) =>
       prev.map((req) => {
         const now = new Date();
-        const dateStr = now.toISOString().split('T')[0];
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = getIndiaDateString(now);
+        const timeStr = formatIndiaTime(now, { hour: '2-digit', minute: '2-digit' });
         if (req.id === requestId) {
           reviewedReq = {
             ...req,
@@ -834,8 +835,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (reviewedReq) {
       const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = getIndiaDateString(now);
+      const timeStr = formatIndiaTime(now, { hour: '2-digit', minute: '2-digit' });
       // Create Approval Audit entry immediately
       const newAudit: ApprovalAudit = {
         id: `audit-${Date.now()}`,

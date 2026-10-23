@@ -11,6 +11,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { LeaveType } from '../../types';
 import { employeeApi } from '../../services/employeeApi';
+import { getIndiaDateOffsetString } from '../../utils/dateTime';
 
 interface EmployeeApplyLeaveProps {
   onNavigateStatus: () => void;
@@ -20,16 +21,8 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
   const { currentUser, applyLeave } = useApp();
 
   const [leaveType, setLeaveType] = useState<LeaveType>('Casual Leave');
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  });
-  const [toDate, setToDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toISOString().split('T')[0];
-  });
+  const [fromDate, setFromDate] = useState(() => getIndiaDateOffsetString(1));
+  const [toDate, setToDate] = useState(() => getIndiaDateOffsetString(2));
   const [reason, setReason] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

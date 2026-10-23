@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SafeImage } from './SafeImage';
+import { formatIndiaTime } from '../../utils/dateTime';
 
 interface HeaderProps {
   onToggleMobileSidebar?: () => void;
@@ -39,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
     const updateTime = () => {
       const d = new Date();
       setCurrentTime(
-        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        formatIndiaTime(d, { hour: '2-digit', minute: '2-digit' })
       );
     };
     updateTime();

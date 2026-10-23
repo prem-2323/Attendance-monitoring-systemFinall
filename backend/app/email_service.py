@@ -2,14 +2,14 @@
 Email Notification Service for Attendance Monitoring System.
 Stores and tracks notifications exclusively in MongoDB Atlas.
 """
-import os
 import smtplib
 import logging
+import os
 from datetime import datetime, date, time
 from email.message import EmailMessage
 from typing import Optional, Dict, Any
-from zoneinfo import ZoneInfo
 from pymongo.errors import DuplicateKeyError
+from backend.services.timezone import INDIA_TZ, india_now
 
 from backend.database import (
     users_collection,
@@ -18,8 +18,8 @@ from backend.database import (
 )
 
 logger = logging.getLogger("email_service")
-TZ_NAME = os.getenv("TIMEZONE", "Asia/Kolkata")
-TZ = ZoneInfo(TZ_NAME)
+
+TZ = INDIA_TZ
 
 
 def send_email(recipient: str, subject: str, body: str):
@@ -306,7 +306,7 @@ def queue_attendance_emails(
             "status": "pending",
             "attempts": 0,
             "last_error": None,
-            "created_at": datetime.utcnow(),
+            "created_at": india_now(),
             "sent_at": None,
         }
 
@@ -426,7 +426,7 @@ def queue_checkout_summary_email(
         "status": "pending",
         "attempts": 0,
         "last_error": None,
-        "created_at": datetime.utcnow(),
+        "created_at": india_now(),
         "sent_at": None,
     }
     try:
@@ -488,7 +488,7 @@ def process_pending_emails(limit: int = 50, event_key: Optional[str] = None) -> 
                 {
                     "$set": {
                         "status": "sent",
-                        "sent_at": datetime.utcnow(),
+                        "sent_at": india_now(),
                         "last_error": None,
                     }
                 },

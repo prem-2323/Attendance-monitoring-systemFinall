@@ -3,7 +3,6 @@ Employee Routes — Registration and listing.
 """
 import io
 import logging
-from datetime import datetime
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -13,6 +12,7 @@ from backend.models.employee import EmployeeResponse
 from backend.services.face_detector import decode_image, detect_faces
 from backend.services.face_landmark import align_face
 from backend.services import face_recognition as fr_service
+from backend.services.timezone import india_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/employee", tags=["Employee"])
@@ -75,7 +75,7 @@ async def register_employee(
         "employee_id": employee_id,
         "name": name.strip(),
         "face_embedding": embedding.tolist(),
-        "created_at": datetime.now().strftime("%Y-%m-%d"),
+        "created_at": india_now(),
     }
 
     try:
@@ -93,7 +93,7 @@ async def register_employee(
             "message": f"Employee '{name}' registered successfully.",
             "employee_id": employee_id,
             "name": name.strip(),
-            "created_at": doc["created_at"],
+            "created_at": doc["created_at"].isoformat(),
         },
     )
 

@@ -17,12 +17,13 @@ import { useApp } from '../../context/AppContext';
 import { Skeleton, SkeletonTable } from './Skeleton';
 import { reportsApi, ReportAggregates } from '../../services/reportsApi';
 import { AttendanceRecord } from '../../types';
+import { getIndiaDateString } from '../../utils/dateTime';
 
 export const ReportsView: React.FC = () => {
   const { allAttendance, users, officeLocation, refreshAttendance, refreshUsers } = useApp();
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const firstDayStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  const todayStr = getIndiaDateString();
+  const firstDayStr = `${todayStr.slice(0, 7)}-01`;
 
   const [department, setDepartment] = useState('All');
   const [employeeFilter, setEmployeeFilter] = useState('All');

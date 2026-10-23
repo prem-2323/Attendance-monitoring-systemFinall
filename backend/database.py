@@ -2,8 +2,10 @@
 MongoDB Atlas connection and collection references.
 """
 import os
+from bson.codec_options import CodecOptions
 from pymongo import MongoClient, ASCENDING
 from backend.config import MONGODB_URI, DATABASE_NAME, ENVIRONMENT
+from backend.services.timezone import INDIA_TZ
 
 client = None
 db     = None
@@ -23,7 +25,9 @@ try:
     )
     # Light connectivity check — will raise if URI is invalid or unreachable
     client.admin.command("ping")
-    db = client[DATABASE_NAME]
+    db = client[DATABASE_NAME].with_options(
+        codec_options=CodecOptions(tz_aware=True, tzinfo=INDIA_TZ)
+    )
     print(f"[DB] Connected to MongoDB — database: {DATABASE_NAME}")
 except Exception as e:
     allow_mock = os.getenv("ALLOW_MONGOMOCK_FALLBACK", "").strip().lower() in (
@@ -47,6 +51,7 @@ except Exception as e:
     try:
         import mongomock
         client = mongomock.MongoClient()
+        # mongomock does not support custom timezone codec options.
         db = client[DATABASE_NAME]
         print(f"[DB] Connected to in-memory mongomock database: {DATABASE_NAME}")
     except Exception as mock_err:

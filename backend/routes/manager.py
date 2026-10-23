@@ -7,7 +7,6 @@ FastAPI Routes for Manager Portal:
 """
 
 import logging
-from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -18,6 +17,7 @@ from backend.database import (
     approval_audits_collection,
 )
 from backend.models.manager import ReviewLeavePayload
+from backend.services.timezone import india_now
 
 logger = logging.getLogger("manager_portal_routes")
 router = APIRouter(tags=["Manager Portal"])
@@ -110,7 +110,7 @@ async def get_manager_dashboard(manager_id: str):
         emp_ids = [e.get("employeeId") for e in employees if e.get("employeeId")]
 
         # 2. Today's attendance for team
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = india_now().strftime("%Y-%m-%d")
         att_query: Dict[str, Any] = {
             "date": today_str,
             "$or": [{"employeeId": {"$in": emp_ids}}, {"employee_id": {"$in": emp_ids}}],
@@ -290,7 +290,7 @@ async def review_leave_request(payload: ReviewLeavePayload):
         if not leave_doc:
             raise HTTPException(status_code=404, detail=f"Leave request '{payload.requestId}' not found")
 
-        now = datetime.now()
+        now = india_now()
         date_str = now.strftime("%Y-%m-%d")
         time_str = now.strftime("%I:%M %p")
         mgr_name = payload.managerName or leave_doc.get("managerName", "Manager")

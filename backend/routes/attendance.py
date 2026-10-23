@@ -2,7 +2,6 @@
 Attendance Routes — Verification, history, and smart approval.
 """
 import logging
-from datetime import datetime
 from typing import Optional
 
 from bson import ObjectId
@@ -16,6 +15,7 @@ from backend.services import face_recognition as fr_service
 from backend.services.attendance_service import build_approval_doc, build_attendance_doc
 from backend.services.face_detector import decode_image, detect_faces
 from backend.services.face_landmark import align_face
+from backend.services.timezone import india_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -111,7 +111,8 @@ async def verify_attendance(
         )
 
     # ── 7. Duplicate attendance check ─────────────────────────────────────────
-    today = datetime.now().strftime("%Y-%m-%d")
+    now = india_now()
+    today = now.strftime("%Y-%m-%d")
     duplicate = attendance_collection.find_one(
         {"employee_id": employee_id, "date": today}
     )
@@ -164,17 +165,13 @@ async def verify_attendance(
 
     # ── 10. Trigger Attendance Email Notifications ────────────────────────────
     try:
-        import os
-        from zoneinfo import ZoneInfo
         from backend.app.email_service import queue_attendance_emails, process_pending_emails
 
-        tz_ind = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
-        now_dt = datetime.now(tz_ind)
         queue_attendance_emails(
             employee=employee,
             status="present",
-            attendance_date=now_dt.date(),
-            check_in=now_dt,
+            attendance_date=now.date(),
+            check_in=now,
         )
         process_pending_emails()
     except Exception as notify_err:
@@ -283,7 +280,7 @@ async def process_approval(attendance_id: str, action: ApprovalAction):
                 "status": new_status,
                 "approved_by": action.manager_id,
                 "reason": action.reason,
-                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": india_now(),
             }
         },
     )

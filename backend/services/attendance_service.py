@@ -12,6 +12,7 @@ from backend.config import (
     LATE_THRESHOLD_MINUTES,
     FACE_MATCH_THRESHOLD,
 )
+from backend.services.timezone import india_now
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def build_attendance_doc(
     Applies time rules and smart approval.
     """
     if now is None:
-        now = datetime.now()
+        now = india_now()
 
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")
@@ -94,5 +95,5 @@ def build_approval_doc(attendance_id: str, employee_id: str) -> dict:
         "status": "Pending",
         "approved_by": None,
         "reason": None,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": india_now(),
     }

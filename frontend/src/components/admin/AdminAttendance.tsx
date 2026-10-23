@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
+import { formatIndiaDate, getIndiaDateOffsetString, getIndiaDateString } from '../../utils/dateTime';
 import {
   Skeleton,
   SkeletonStatCard,
@@ -42,9 +43,9 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     refreshAttendance,
   } = useApp();
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-  const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+  const todayStr = getIndiaDateString();
+  const firstDayOfMonth = `${todayStr.slice(0, 7)}-01`;
+  const weekAgoStr = getIndiaDateOffsetString(-7);
   const currentMonthPrefix = todayStr.slice(0, 7);
 
   const [viewMode, setViewMode] = useState<'today' | 'history'>(initialMode);
@@ -153,7 +154,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Attendance_${viewMode}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Attendance_${viewMode}_${getIndiaDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -203,7 +204,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
           </h1>
           <p className="mt-1 text-xs text-slate-500">
             {viewMode === 'today'
-              ? `Live biometric surveillance and arrival tracking for today's active shift (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}).`
+              ? `Live biometric surveillance and arrival tracking for today's active shift (${formatIndiaDate(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}).`
               : 'Complete multi-day historical check-in audit logs, punctuality metrics, and working hour records.'}
           </p>
         </div>
@@ -219,7 +220,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Today's Attendance ({new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+              Today's Attendance ({formatIndiaDate(new Date(), { month: 'short', day: 'numeric' })})
             </button>
             <button
               onClick={() => {

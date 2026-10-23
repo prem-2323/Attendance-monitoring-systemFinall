@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatIndiaTime } from '../../utils/dateTime';
 import { employeeApi } from '../../services/employeeApi';
 import { SafeImage } from '../common/SafeImage';
 import { OFFICE_BOX_CENTER, haversineMeters } from '../../utils/geofence';
@@ -219,7 +220,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
         hasAutoSubmittedRef.current = true;
         setVerificationStage('marked');
         setCheckoutEmailStatus(isCheckOutMode ? result.emailNotification?.detail || '' : '');
-        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeNow = formatIndiaTime(new Date(), { hour: '2-digit', minute: '2-digit' });
         setMarkedTimestamp(timeNow);
       } else {
         setErrorMessage(result.message);

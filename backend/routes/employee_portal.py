@@ -10,10 +10,8 @@ FastAPI Routes for Employee Portal:
 import base64
 import cv2
 import logging
-import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from zoneinfo import ZoneInfo
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from backend.database import (
@@ -31,12 +29,10 @@ from backend.models.employee_portal import (
     FaceDetectRequest,
 )
 from backend.services.face_detector import decode_image, detect_faces, crop_face
+from backend.services.timezone import india_now
 
 logger = logging.getLogger("employee_portal_routes")
 router = APIRouter(tags=["Employee Portal"])
-TZ = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
-
-
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to sanitize MongoDB document for JSON responses."""
     if not doc:
@@ -237,7 +233,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                         logger.warning(f"Could not auto-enroll face in mark_attendance: {e_reg}")
 
         # 3. Format current time
-        now = datetime.now(TZ)
+        now = india_now()
         formatted_time = now.strftime("%I:%M %p")
         today_str = now.strftime("%Y-%m-%d")
 
@@ -382,17 +378,13 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
 
             # Trigger Attendance Email Notifications
             try:
-                import os
-                from zoneinfo import ZoneInfo
                 from backend.app.email_service import queue_attendance_emails, process_pending_emails
 
-                tz_ind = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
-                now_dt = datetime.now(tz_ind)
                 queue_attendance_emails(
                     employee=emp,
                     status="present",
-                    attendance_date=now_dt.date(),
-                    check_in=now_dt,
+                    attendance_date=now.date(),
+                    check_in=now,
                 )
                 process_pending_emails()
             except Exception as notify_err:
@@ -690,7 +682,7 @@ async def apply_for_leave(payload: ApplyLeaveRequest):
         except Exception:
             days_count = 1
 
-        now = datetime.now()
+        now = india_now()
         new_leave = {
             "id": f"leave-{int(now.timestamp() * 1000)}",
             "employeeId": payload.employeeId,
@@ -769,7 +761,7 @@ async def get_employee_dashboard(employee_id: str):
     """
     try:
         # Today's record
-        today_str = datetime.now(TZ).strftime("%Y-%m-%d")
+        today_str = india_now().strftime("%Y-%m-%d")
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
@@ -838,7 +830,7 @@ async def get_smart_hours_calculation(
         response.headers["Pragma"] = "no-cache"
         target_h = int(cfg.get("expectedHoursPerDay", 8))
 
-        today_str = datetime.now(TZ).strftime("%Y-%m-%d")
+        today_str = india_now().strftime("%Y-%m-%d")
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
@@ -849,7 +841,7 @@ async def get_smart_hours_calculation(
         persisted_in = (today_rec.get("checkIn") if today_rec else None) or std_in_default
         persisted_out = today_rec.get("checkOut") if today_rec else None
         # Actual progress: persisted check-in/out vs wall-clock now.
-        now_str = datetime.now(TZ).strftime("%I:%M %p")
+        now_str = india_now().strftime("%I:%M %p")
         actual_anchor = persisted_out or now_str
         actual = compute_shift(persisted_in, actual_anchor, cfg)
         # If no checkout yet, anchor at now for live In-Progress view.

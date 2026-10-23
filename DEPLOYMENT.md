@@ -95,13 +95,17 @@ Set these environment variables in **Environment**:
 | `SMTP_PASSWORD` | yes | app password (not your normal password) |
 | `MAIL_FROM` | yes | sender email |
 | `ADMIN_EMAIL` | yes | admin notification email |
-| `TIMEZONE` | no | `Asia/Kolkata` |
 | `ATTENDANCE_CUTOFF` | no | `11:40` |
 | `CORS_ORIGINS` | yes | `https://your-app.vercel.app` |
 | `CORS_ORIGIN_REGEX` | no | `https://.*\.vercel\.app` |
 | `FRONTEND_URL` | no | alternative to adding one origin in `CORS_ORIGINS` |
 
 Do **not** set `PORT`; Render provides it automatically.
+
+The application uses `Asia/Kolkata` for attendance dates, timestamps, and
+display. No timezone environment variable is needed. MongoDB BSON date fields
+represent instants in UTC internally; the backend decodes and returns them in
+Indian Standard Time, while attendance calendar dates are stored as IST dates.
 
 ### Why `build.sh`?
 

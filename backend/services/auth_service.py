@@ -4,7 +4,7 @@ Authentication and security helper services.
 import hashlib
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 
@@ -62,6 +62,9 @@ def serialize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
     avatar_val = user.get("avatarUrl") or user.get("avatar") or ""
     user["avatarUrl"] = avatar_val
     user["avatar"] = avatar_val
+
+    for key, value in user.items():
+        if isinstance(value, datetime):
+            user[key] = value.isoformat()
         
     return user
-

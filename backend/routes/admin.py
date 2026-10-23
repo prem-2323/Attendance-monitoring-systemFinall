@@ -12,7 +12,6 @@ Handles:
 """
 
 import logging
-from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -37,6 +36,7 @@ from backend.models.admin import (
     OfficeLocationsUpdateRequest,
     LocationItem,
 )
+from backend.services.timezone import india_now
 
 logger = logging.getLogger("admin_routes")
 router = APIRouter(tags=["Admin"])
@@ -69,8 +69,8 @@ async def get_dashboard_stats():
         emp_filter = {"role": "employee", "active": True}
         total_employees = users_collection.count_documents(emp_filter) if users_collection is not None else 0
 
-        # 2. Today's date (defaults to system current date '2026-10-10' or actual today)
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        # 2. Today's date in Indian Standard Time
+        today_str = india_now().strftime("%Y-%m-%d")
         
         # Check if we have records for today_str, else fallback to latest date available in attendance
         today_query = {"date": today_str}
@@ -241,7 +241,8 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             logger.info(f"[Admin] Employee '{payload.employeeId}' synced with face biometrics successfully.")
             return _clean_doc(updated_emp or existing_emp)
 
-        new_id = f"user-emp-{int(datetime.now().timestamp() * 1000) % 1000000}"
+        now = india_now()
+        new_id = f"user-emp-{int(now.timestamp() * 1000) % 1000000}"
         from backend.services.auth_service import hash_password
         default_pw = hash_password("password123")
 
@@ -257,7 +258,8 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             "avatarUrl": final_avatar,
             "faceRegistered": has_face,
             "faceVector": f"VEC-128-{payload.employeeId.strip()}" if has_face else None,
-            "joinDate": datetime.now().strftime("%Y-%m-%d"),
+            "joinDate": now.strftime("%Y-%m-%d"),
+            "created_at": now,
             "active": True,
             "title": f"Staff {payload.department}",
             "password_hash": default_pw,
@@ -270,7 +272,7 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             emp_sync = {
                 "employee_id": payload.employeeId.strip(),
                 "name": payload.name.strip(),
-                "created_at": datetime.now().strftime("%Y-%m-%d"),
+                "created_at": india_now(),
             }
             if face_embedding is not None:
                 emp_sync["face_embedding"] = face_embedding
@@ -357,7 +359,8 @@ async def create_manager(payload: AddManagerAdminRequest):
             logger.info(f"[Admin] Manager '{payload.employeeId}' synced successfully in MongoDB.")
             return _clean_doc(updated_mgr or existing_mgr)
 
-        new_id = f"user-mgr-{int(datetime.now().timestamp() * 1000) % 1000000}"
+        now = india_now()
+        new_id = f"user-mgr-{int(now.timestamp() * 1000) % 1000000}"
         from backend.services.auth_service import hash_password
         default_pw = hash_password("password123")
 
@@ -372,7 +375,8 @@ async def create_manager(payload: AddManagerAdminRequest):
             "title": payload.title or "Department Operations Director",
             "avatarUrl": payload.avatarUrl or "",
             "faceRegistered": payload.faceRegistered if payload.faceRegistered is not None else True,
-            "joinDate": datetime.now().strftime("%Y-%m-%d"),
+            "joinDate": now.strftime("%Y-%m-%d"),
+            "created_at": now,
             "active": True,
             "password_hash": default_pw,
         }
@@ -438,7 +442,7 @@ async def list_attendance(
         # If mode is today and no explicit date given
         if mode == "today" and not date:
             # Look up latest date or today's date
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_str = india_now().strftime("%Y-%m-%d")
             if attendance_collection.count_documents({"date": today_str}) > 0:
                 query["date"] = today_str
             else:
@@ -500,15 +504,15 @@ async def override_attendance(payload: AttendanceOverrideRequest):
 
         # Log into approval audit collection
         audit_entry = {
-            "id": f"audit-{int(datetime.now().timestamp() * 1000)}",
+            "id": f"audit-{int(india_now().timestamp() * 1000)}",
             "employeeId": payload.employeeId,
             "employeeName": emp_name,
             "requestType": f"Manual Attendance Regularization ({payload.status})",
             "decision": "Approved",
             "managerId": "user-admin",
             "managerName": "System Administrator",
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "time": datetime.now().strftime("%I:%M %p"),
+            "date": india_now().strftime("%Y-%m-%d"),
+            "time": india_now().strftime("%I:%M %p"),
             "reason": payload.reason,
             "remarks": f"Admin override for {payload.date} set to {payload.status}.",
         }

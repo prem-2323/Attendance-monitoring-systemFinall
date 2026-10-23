@@ -3,7 +3,7 @@ Authentication & User Management Routes for FastAPI.
 Persists Users and Password Reset Tokens directly to MongoDB Atlas.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, status, Body, Query
@@ -27,6 +27,7 @@ from backend.services.auth_service import (
     serialize_user,
 )
 from backend.services.face_detector import extract_face_embedding_from_b64
+from backend.services.timezone import india_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
@@ -84,8 +85,9 @@ async def register_admin(payload: AdminRegisterRequest):
             },
         )
 
+    now = india_now()
     admin_doc = {
-        "id": f"user-adm-{datetime.now().strftime('%f')[:4]}",
+        "id": f"user-adm-{now.strftime('%f')[:4]}",
         "name": payload.name.strip(),
         "employeeId": employee_id,
         "employee_id": employee_id,
@@ -95,11 +97,11 @@ async def register_admin(payload: AdminRegisterRequest):
         "role": "admin",
         "title": "System Administrator",
         "active": True,
-        "joinDate": datetime.now().strftime("%Y-%m-%d"),
+        "joinDate": now.strftime("%Y-%m-%d"),
         "faceRegistered": False,
         "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": datetime.now().isoformat(),
+        "created_at": now,
     }
 
     try:
@@ -164,8 +166,9 @@ async def register_manager(payload: ManagerRegisterRequest):
             },
         )
 
+    now = india_now()
     mgr_doc = {
-        "id": f"user-mgr-{datetime.now().strftime('%f')[:4]}",
+        "id": f"user-mgr-{now.strftime('%f')[:4]}",
         "name": payload.name.strip(),
         "employeeId": employee_id,
         "employee_id": employee_id,
@@ -175,11 +178,11 @@ async def register_manager(payload: ManagerRegisterRequest):
         "role": "manager",
         "title": payload.title or "Engineering Lead",
         "active": True,
-        "joinDate": datetime.now().strftime("%Y-%m-%d"),
+        "joinDate": now.strftime("%Y-%m-%d"),
         "faceRegistered": False,
         "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": datetime.now().isoformat(),
+        "created_at": now,
     }
 
     try:
@@ -281,8 +284,9 @@ async def register_employee(payload: EmployeeRegisterRequest):
             },
         )
 
+    now = india_now()
     emp_doc = {
-        "id": f"user-emp-{datetime.now().strftime('%f')[:4]}",
+        "id": f"user-emp-{now.strftime('%f')[:4]}",
         "name": payload.name.strip(),
         "employeeId": employee_id,
         "employee_id": employee_id,
@@ -294,13 +298,13 @@ async def register_employee(payload: EmployeeRegisterRequest):
         "managerName": payload.managerName or "",
         "title": "Engineer",
         "active": True,
-        "joinDate": datetime.now().strftime("%Y-%m-%d"),
+        "joinDate": now.strftime("%Y-%m-%d"),
         "faceRegistered": has_face,
         "faceVector": f"VEC-128-{employee_id}" if has_face else None,
         "avatarUrl": final_avatar,
         "avatar": final_avatar,
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": datetime.now().isoformat(),
+        "created_at": now,
     }
     if face_embedding is not None:
         emp_doc["faceEmbedding"] = face_embedding
@@ -316,7 +320,7 @@ async def register_employee(payload: EmployeeRegisterRequest):
                 "name": payload.name.strip(),
                 "department": payload.department or "Engineering",
                 "email": email,
-                "created_at": datetime.now().strftime("%Y-%m-%d"),
+                "created_at": now,
             }
             if face_embedding is not None:
                 emp_sync["face_embedding"] = face_embedding
@@ -352,127 +356,11 @@ async def auto_login(
     identifier: Optional[str] = None,
     payload: Optional[dict] = None,
 ):
-    """
-    1-Click Auto Login endpoint for instant access to Admin, Manager, or Employee dashboards.
-    Fetches the active user for the requested role or identifier from MongoDB Atlas.
-    If no user exists for that role, automatically seeds and stores a verified user in MongoDB.
-    """
-    if users_collection is None:
-        raise HTTPException(status_code=503, detail="Database not connected.")
-
-    target_role = "admin"
-    target_ident = identifier.strip() if isinstance(identifier, str) and identifier.strip() else None
-
-
-    if payload and isinstance(payload, dict):
-        if payload.get("identifier"):
-            target_ident = str(payload["identifier"]).strip()
-        elif payload.get("email"):
-            target_ident = str(payload["email"]).strip()
-        if payload.get("role"):
-            target_role = str(payload["role"]).lower().strip()
-    elif role:
-        cleaned_role = str(role).lower().strip()
-        if cleaned_role in ["admin", "manager", "employee"]:
-            target_role = cleaned_role
-        elif not target_ident:
-            target_ident = str(role).strip()
-
-    if target_role not in ["admin", "manager", "employee"]:
-        target_role = "admin"
-
-    user = None
-    if target_ident:
-        user = users_collection.find_one({
-            "$or": [
-                {"email": {"$regex": f"^{target_ident}$", "$options": "i"}},
-                {"employeeId": {"$regex": f"^{target_ident}$", "$options": "i"}},
-                {"employee_id": {"$regex": f"^{target_ident}$", "$options": "i"}},
-            ]
-        })
-
-    # If no specific user was found, search for an existing user with this role
-    if not user:
-        user = users_collection.find_one({"role": target_role})
-        if not user:
-            user = users_collection.find_one({"role": {"$regex": f"^{target_role}$", "$options": "i"}})
-
-    # If no user exists for this role in Atlas, seed a standard corporate account
-
-    if not user:
-        now_str = datetime.now().strftime("%Y-%m-%d")
-        now_iso = datetime.now().isoformat()
-        if target_role == "admin":
-            user = {
-                "id": "user-adm-001",
-                "name": "System Administrator",
-                "employeeId": "ADM001",
-                "employee_id": "ADM001",
-                "email": "admin@ams.corp",
-                "phone": "+91 98401 00001",
-                "department": "System Administration",
-                "role": "admin",
-                "title": "System Administrator",
-                "active": True,
-                "joinDate": now_str,
-                "faceRegistered": False,
-                "avatarUrl": "",
-                "password_hash": hash_password("admin123"),
-                "created_at": now_iso,
-            }
-            users_collection.insert_one(user)
-        elif target_role == "manager":
-            user = {
-                "id": "user-mgr-001",
-                "name": "Operations Manager",
-                "employeeId": "MGR001",
-                "employee_id": "MGR001",
-                "email": "manager@ams.corp",
-                "phone": "+91 98401 00002",
-                "department": "Engineering",
-                "role": "manager",
-                "title": "Engineering Lead",
-                "active": True,
-                "joinDate": now_str,
-                "faceRegistered": False,
-                "avatarUrl": "",
-                "password_hash": hash_password("manager123"),
-                "created_at": now_iso,
-            }
-            users_collection.insert_one(user)
-        else:  # employee
-            user = {
-                "id": "user-emp-001",
-                "name": "Alex Mercer",
-                "employeeId": "EMP001",
-                "employee_id": "EMP001",
-                "email": "employee@ams.corp",
-                "phone": "+91 98401 00003",
-                "department": "Engineering",
-                "role": "employee",
-                "managerName": "Operations Manager",
-                "title": "Senior Software Engineer",
-                "active": True,
-                "joinDate": now_str,
-                "faceRegistered": True,
-                "faceVector": "VEC-128-EMP001",
-                "avatarUrl": "",
-                "password_hash": hash_password("emp123"),
-                "created_at": now_iso,
-            }
-            users_collection.insert_one(user)
-            if employees_collection is not None:
-                employees_collection.update_one(
-                    {"employee_id": "EMP001"},
-                    {"$set": {"employee_id": "EMP001", "name": "Alex Mercer", "created_at": now_str}},
-                    upsert=True,
-                )
-
-    return {
-        "success": True,
-        "message": f"Auto-login successful as {user.get('name')} ({target_role.capitalize()})",
-        "user": serialize_user(user),
-    }
+    """Reject legacy passwordless sign-in requests."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Passwordless role login is disabled. Sign in with your email and password.",
+    )
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
@@ -544,7 +432,7 @@ async def forgot_password_request(payload: ForgotPasswordRequest):
 
     # Generate OTP code (e.g. 8421 or random 4 digits)
     otp = generate_otp()
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    expires_at = india_now() + timedelta(minutes=15)
 
     reset_tokens_collection.update_one(
         {"identifier": user["email"]},
@@ -554,7 +442,7 @@ async def forgot_password_request(payload: ForgotPasswordRequest):
                 "code": otp,
                 "expires_at": expires_at,
                 "used": False,
-                "created_at": datetime.utcnow(),
+                "created_at": india_now(),
             }
         },
         upsert=True,

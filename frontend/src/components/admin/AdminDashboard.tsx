@@ -16,6 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatIndiaDate } from '../../utils/dateTime';
 import {
   Skeleton,
   SkeletonStatsGrid,
@@ -239,7 +240,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </p>
             </div>
             <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-              Live {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              Live {formatIndiaDate(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
           </div>
 

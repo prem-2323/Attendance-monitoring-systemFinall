@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { getIndiaDateString } from '../../utils/dateTime';
 import { Skeleton } from '../common/Skeleton';
 
 export const AdminApprovalAudit: React.FC = () => {
@@ -61,7 +62,7 @@ export const AdminApprovalAudit: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Approval_Audit_Log_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Approval_Audit_Log_${getIndiaDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
