@@ -294,6 +294,13 @@ HTTPS automatically.
 - Gmail requires an **App Password**, not the account password.
 - Some hosts restrict outbound SMTP. If port `587` times out, try your
   provider's SSL port (`465`) or a transactional email service.
+- After fixing the SMTP settings and redeploying, retry queued or failed
+  notifications with `POST https://<backend-url>/attendance/process-emails?retry_failed=true`.
+  The response reports `attempted`, `sent`, and `failed` counts. A nonzero
+  `failed` count means the Render service logs contain the SMTP delivery error.
+- Absence emails go to the employee's registered email, their assigned
+  manager (if set), and active admin accounts. `ADMIN_EMAIL` is only used as
+  a fallback when there are no active admin accounts.
 
 ---
 

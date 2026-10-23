@@ -10,8 +10,10 @@ FastAPI Routes for Employee Portal:
 import base64
 import cv2
 import logging
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, HTTPException, Query, status
 
 from backend.database import (
@@ -31,6 +33,7 @@ from backend.services.face_detector import decode_image, detect_faces, crop_face
 
 logger = logging.getLogger("employee_portal_routes")
 router = APIRouter(tags=["Employee Portal"])
+TZ = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
 
 
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,7 +66,7 @@ def _calc_hours_difference(time_start_str: str, time_end_str: str) -> str:
 def verify_geofence_internal(latitude: float, longitude: float):
     """
     Validates GPS coordinates against the one configured office location.
-    A configured polygon is authoritative; radius is used only without a polygon.
+    Attendance is allowed within the configured radius of its coordinates.
     """
     settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
     office_locations = settings_doc.get("officeLocations") if settings_doc else []
@@ -73,7 +76,7 @@ def verify_geofence_internal(latitude: float, longitude: float):
     if not loc:
         return False, 0, "Office Campus", 0
 
-    from backend.services.geofence import point_in_polygon, haversine_meters
+    from backend.services.geofence import haversine_meters
 
     loc_name = loc.get("name", "Office Location")
     loc_radius = int(loc.get("allowedRadiusMeters", 1000))
@@ -84,20 +87,6 @@ def verify_geofence_internal(latitude: float, longitude: float):
     if loc.get("isActive") is False:
         return False, dist, loc_name, loc_radius
 
-    raw_polygon = loc.get("geofencePolygon")
-    if raw_polygon is None:
-        raw_polygon = settings_doc.get("geofencePolygon", []) if settings_doc else []
-    try:
-        loc_box = [
-            (float(p["lat"]), float(p["lng"]))
-            for p in raw_polygon
-            if "lat" in p and "lng" in p
-        ]
-    except (TypeError, ValueError, KeyError):
-        loc_box = []
-
-    if len(loc_box) >= 3:
-        return point_in_polygon(latitude, longitude, loc_box), dist, loc_name, loc_radius
     return dist <= loc_radius, dist, loc_name, loc_radius
 
 
@@ -132,7 +121,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 detail=(
                     f"Outside the configured office geofence: your GPS position "
                     f"({payload.latitude:.6f}, {payload.longitude:.6f}) is {dist}m from "
-                    f"{loc_name} (allowed radius when no polygon is configured: {allowed_radius}m)."
+                    f"{loc_name} (allowed radius: {allowed_radius}m)."
                 ),
             )
         payload.distanceMeters = dist
@@ -242,7 +231,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                         logger.warning(f"Could not auto-enroll face in mark_attendance: {e_reg}")
 
         # 3. Format current time
-        now = datetime.now()
+        now = datetime.now(TZ)
         formatted_time = now.strftime("%I:%M %p")
         today_str = now.strftime("%Y-%m-%d")
 
@@ -734,7 +723,7 @@ async def get_employee_dashboard(employee_id: str):
     """
     try:
         # Today's record
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = datetime.now(TZ).strftime("%Y-%m-%d")
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
@@ -796,7 +785,7 @@ async def get_smart_hours_calculation(
         cfg = get_smart_config(settings_doc)
         target_h = int(cfg.get("expectedHoursPerDay", 8))
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = datetime.now(TZ).strftime("%Y-%m-%d")
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
@@ -807,7 +796,7 @@ async def get_smart_hours_calculation(
         persisted_in = (today_rec.get("checkIn") if today_rec else None) or std_in_default
         persisted_out = today_rec.get("checkOut") if today_rec else None
         # Actual progress: persisted check-in/out vs wall-clock now.
-        now_str = datetime.now().strftime("%I:%M %p")
+        now_str = datetime.now(TZ).strftime("%I:%M %p")
         actual_anchor = persisted_out or now_str
         actual = compute_shift(persisted_in, actual_anchor, cfg)
         # If no checkout yet, anchor at now for live In-Progress view.

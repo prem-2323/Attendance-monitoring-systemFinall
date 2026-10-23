@@ -17,12 +17,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { employeeApi } from '../../services/employeeApi';
 import { SafeImage } from '../common/SafeImage';
-import {
-  OFFICE_GEOFENCE_POLYGON,
-  OFFICE_BOX_CENTER,
-  isInsideGeofenceBox,
-  haversineMeters,
-} from '../../utils/geofence';
+import { OFFICE_BOX_CENTER, haversineMeters } from '../../utils/geofence';
 
 export const EmployeeMarkAttendance: React.FC = () => {
   const { currentUser, markAttendance, officeLocation, todayAttendance } = useApp();
@@ -59,7 +54,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
   const [livenessStatus, setLivenessStatus] = useState<'pending' | 'checking' | 'verified'>('pending');
   const [gpsStatus, setGpsStatus] = useState<'pending' | 'checking' | 'verified'>('pending');
 
-  // GPS Metrics — office geofence BOX (attendance allowed inside the polygon)
+  // GPS metrics for the configured office radius.
   const [calculatedDistance, setCalculatedDistance] = useState<number>(0);
   const [withinOfficeRadius, setWithinOfficeRadius] = useState<boolean>(false);
   const [userLat, setUserLat] = useState<number | null>(null);
@@ -137,48 +132,13 @@ export const EmployeeMarkAttendance: React.FC = () => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        const activeLocs = [officeLocation];
+        const centerLat = officeLocation.lat ?? OFFICE_BOX_CENTER.lat;
+        const centerLng = officeLocation.lng ?? OFFICE_BOX_CENTER.lng;
+        const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
+        const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+        const inside = dist <= radiusLimit;
 
-        const validMatches: { loc: typeof activeLocs[0]; dist: number; inBox: boolean }[] = [];
-        let minDistance = Infinity;
-        let closestLoc = activeLocs[0] || officeLocation;
-
-        for (const loc of activeLocs) {
-          const centerLat = loc.lat ?? OFFICE_BOX_CENTER.lat;
-          const centerLng = loc.lng ?? OFFICE_BOX_CENTER.lng;
-          const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestLoc = loc;
-          }
-          const polygon =
-            loc.geofencePolygon && loc.geofencePolygon.length >= 3
-              ? loc.geofencePolygon
-              : (loc.id === 'loc-1' || !loc.id
-                  ? (officeLocation?.geofencePolygon && officeLocation.geofencePolygon.length >= 3
-                      ? officeLocation.geofencePolygon
-                      : OFFICE_GEOFENCE_POLYGON)
-                  : []);
-          const insideBox = polygon.length >= 3 && isInsideGeofenceBox(lat, lng, polygon);
-          const radiusLimit = loc.allowedRadiusMeters || 1000;
-          if (polygon.length >= 3 ? insideBox : dist <= radiusLimit) {
-            validMatches.push({ loc, dist, inBox: insideBox });
-          }
-        }
-
-        validMatches.sort((a, b) => {
-          if (a.inBox && !b.inBox) return -1;
-          if (!a.inBox && b.inBox) return 1;
-          return a.dist - b.dist;
-        });
-
-        const matched = validMatches.length > 0 ? validMatches[0] : null;
-        const inside = !!matched;
-        const currentLoc = matched ? matched.loc : closestLoc;
-        const dist = matched ? matched.dist : minDistance;
-        const radiusLimit = currentLoc.allowedRadiusMeters || 1000;
-
-        setDetectedLocationName(currentLoc.name || 'Office Campus');
+        setDetectedLocationName(officeLocation.name || 'Office Campus');
         setCalculatedDistance(dist);
         setWithinOfficeRadius(inside);
         setUserLat(lat);
@@ -186,7 +146,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
         setGpsError(
           inside
             ? ''
-            : `Outside ${currentLoc.name} geofence (${dist}m away, allowed radius: ${radiusLimit}m).`
+            : `Outside ${officeLocation.name} geofence (${dist}m away, allowed radius: ${radiusLimit}m).`
         );
         geoRef.current = { inside, lat, lng, dist };
         setIsRefreshingGps(false);
@@ -208,48 +168,13 @@ export const EmployeeMarkAttendance: React.FC = () => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          const activeLocs = [officeLocation];
+          const centerLat = officeLocation.lat ?? OFFICE_BOX_CENTER.lat;
+          const centerLng = officeLocation.lng ?? OFFICE_BOX_CENTER.lng;
+          const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
+          const radiusLimit = officeLocation.allowedRadiusMeters || 1000;
+          const inside = dist <= radiusLimit;
 
-          const validMatches: { loc: typeof activeLocs[0]; dist: number; inBox: boolean }[] = [];
-          let minDistance = Infinity;
-          let closestLoc = activeLocs[0] || officeLocation;
-
-          for (const loc of activeLocs) {
-            const centerLat = loc.lat ?? OFFICE_BOX_CENTER.lat;
-            const centerLng = loc.lng ?? OFFICE_BOX_CENTER.lng;
-            const dist = Math.round(haversineMeters(lat, lng, centerLat, centerLng));
-            if (dist < minDistance) {
-              minDistance = dist;
-              closestLoc = loc;
-            }
-            const polygon =
-              loc.geofencePolygon && loc.geofencePolygon.length >= 3
-                ? loc.geofencePolygon
-                : (loc.id === 'loc-1' || !loc.id
-                    ? (officeLocation?.geofencePolygon && officeLocation.geofencePolygon.length >= 3
-                        ? officeLocation.geofencePolygon
-                        : OFFICE_GEOFENCE_POLYGON)
-                    : []);
-            const insideBox = polygon.length >= 3 && isInsideGeofenceBox(lat, lng, polygon);
-            const radiusLimit = loc.allowedRadiusMeters || 1000;
-            if (polygon.length >= 3 ? insideBox : dist <= radiusLimit) {
-              validMatches.push({ loc, dist, inBox: insideBox });
-            }
-          }
-
-          validMatches.sort((a, b) => {
-            if (a.inBox && !b.inBox) return -1;
-            if (!a.inBox && b.inBox) return 1;
-            return a.dist - b.dist;
-          });
-
-          const matched = validMatches.length > 0 ? validMatches[0] : null;
-          const inside = !!matched;
-          const currentLoc = matched ? matched.loc : closestLoc;
-          const dist = matched ? matched.dist : minDistance;
-          const radiusLimit = currentLoc.allowedRadiusMeters || 1000;
-
-          setDetectedLocationName(currentLoc.name || 'Office Campus');
+          setDetectedLocationName(officeLocation.name || 'Office Campus');
           setCalculatedDistance(dist);
           setWithinOfficeRadius(inside);
           setUserLat(lat);
@@ -257,7 +182,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
           setGpsError(
             inside
               ? ''
-              : `Outside ${currentLoc.name} geofence (${dist}m away, allowed radius: ${radiusLimit}m).`
+              : `Outside ${officeLocation.name} geofence (${dist}m away, allowed radius: ${radiusLimit}m).`
           );
           geoRef.current = { inside, lat, lng, dist };
         },
@@ -846,7 +771,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
               <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-100">
                 <div>
                   <span className="font-semibold text-slate-800">Office Geofence</span>
-                  <div className="text-[10px] text-slate-400">Ray-casting point-in-polygon verification</div>
+                  <div className="text-[10px] text-slate-400">GPS distance from the office</div>
                 </div>
                 {gpsStatus === 'pending' && (
                   <span className={withinOfficeRadius ? 'text-emerald-600 font-semibold' : 'text-slate-400'}>
@@ -891,11 +816,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
                   <span>{detectedLocationName}</span>
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Geofence: <strong>
-                    {officeLocation.geofencePolygon && officeLocation.geofencePolygon.length >= 3
-                      ? 'Configured office boundary'
-                      : `${officeLocation.allowedRadiusMeters || 1000}m radius`}
-                  </strong>
+                  Geofence: <strong>{officeLocation.allowedRadiusMeters || 1000}m radius</strong>
                   {userLat !== null && userLng !== null && (
                     <span> · {calculatedDistance}m from centroid</span>
                   )}

@@ -92,6 +92,9 @@ def mark_absent_employees(force: bool = False):
             or employee.get("employee_id")
             or employee.get("id")
         )
+        if emp_id == "None":
+            logger.warning("[AbsenceChecker] Skipping employee without an employee ID.")
+            continue
 
         attendance = attendance_collection.find_one({
             "$or": [
@@ -101,7 +104,20 @@ def mark_absent_employees(force: bool = False):
             "date": today_str,
         })
 
-        if attendance is None:
+        if attendance:
+            check_in = attendance.get("checkIn") or attendance.get("check_in")
+            status = str(attendance.get("status") or "").strip().lower()
+            if check_in or status not in {"absent", "pending check-in"}:
+                continue
+
+            attendance_collection.update_one(
+                {"_id": attendance["_id"]} if attendance.get("_id") else {
+                    "$or": [{"employeeId": emp_id}, {"employee_id": emp_id}],
+                    "date": today_str,
+                },
+                {"$set": {"status": "Absent", "checkIn": None, "check_in": None}},
+            )
+        else:
             new_att = {
                 "employeeId": emp_id,
                 "employee_id": emp_id,
@@ -109,7 +125,7 @@ def mark_absent_employees(force: bool = False):
                 "name": employee.get("name", "Employee"),
                 "department": employee.get("department", "General"),
                 "date": today_str,
-                "status": "absent",
+                "status": "Absent",
                 "checkIn": None,
                 "check_in": None,
                 "created_at": datetime.utcnow(),
@@ -120,15 +136,21 @@ def mark_absent_employees(force: bool = False):
                     f"[AbsenceChecker] Marked {employee.get('name')} (ID: {emp_id}) absent for {today_str} in MongoDB Atlas"
                 )
             except Exception as e:
-                logger.warning(f"[AbsenceChecker] Note inserting absent record: {e}")
+                logger.warning(f"[AbsenceChecker] Could not mark {emp_id} absent: {e}")
+                continue
 
-            queue_attendance_emails(
-                employee=employee,
-                status="absent",
-                attendance_date=now.date(),
-                check_in=None,
-            )
-            process_pending_emails()
+        queue_attendance_emails(
+            employee=employee,
+            status="absent",
+            attendance_date=now.date(),
+            check_in=None,
+            cutoff_time=cutoff,
+        )
+
+    try:
+        process_pending_emails()
+    except Exception:
+        logger.exception("[AbsenceChecker] Failed processing queued attendance emails.")
 
 
 def start_scheduler():

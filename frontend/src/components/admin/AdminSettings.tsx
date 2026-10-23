@@ -140,12 +140,6 @@ export const AdminSettings: React.FC = () => {
     });
   };
 
-  const updatePolygonCorner = (index: number, field: 'lat' | 'lng', value: number) => {
-    const polygon = [...(curLoc.geofencePolygon || [])];
-    polygon[index] = { ...polygon[index], [field]: value };
-    updateCurLoc('geofencePolygon', polygon);
-  };
-
   useEffect(() => {
     if (smartHoursConfig) {
       const liveIn = smartHoursConfig.inTime || smartHoursConfig.standardStartTime;
@@ -207,7 +201,7 @@ export const AdminSettings: React.FC = () => {
     setIsSaving(true);
     try {
       // Keep the canonical office setting and the locations list in sync.
-      await updateOfficeLocations([curLoc]);
+      await updateOfficeLocations([{ ...curLoc, geofencePolygon: [] }]);
 
       // 2. Persist In-Time, Out-Time, and Smart Hours policy in MongoDB Atlas
       await updateSmartHoursConfig({
@@ -580,10 +574,10 @@ export const AdminSettings: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-900">
-                  Office GPS Geofence
+                  Office Location
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Configure the single office location where employees can check in or out.
+                  Set the office coordinates and radius. Employees can check in only within this area.
                 </p>
               </div>
             </div>
@@ -656,7 +650,7 @@ export const AdminSettings: React.FC = () => {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Center Latitude (°N)
+                  Office Latitude
                 </label>
                 <input
                   type="number"
@@ -669,7 +663,7 @@ export const AdminSettings: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Center Longitude (°E)
+                  Office Longitude
                 </label>
                 <input
                   type="number"
@@ -681,66 +675,8 @@ export const AdminSettings: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-bold text-emerald-900">Attendance Boundary Coordinates</div>
-                  <p className="mt-0.5 text-[11px] text-emerald-800">
-                    Enter the latitude and longitude for each boundary corner. Attendance is accepted inside this boundary only.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => updateCurLoc('geofencePolygon', [
-                    ...(curLoc.geofencePolygon || []),
-                    { lat: curLoc.lat, lng: curLoc.lng },
-                  ])}
-                  className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
-                >
-                  Add coordinate
-                </button>
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {(curLoc.geofencePolygon || []).map((corner, index) => (
-                  <div key={index} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2">
-                    <span className="shrink-0 text-[10px] font-semibold text-slate-600">Corner {index + 1}</span>
-                    <input
-                      aria-label={`Corner ${index + 1} latitude`}
-                      type="number"
-                      step="0.000001"
-                      value={corner.lat}
-                      onChange={(e) => updatePolygonCorner(index, 'lat', Number(e.target.value))}
-                      className="min-w-0 w-full rounded border border-slate-200 px-2 py-1 font-mono text-[10px]"
-                      placeholder="Latitude"
-                    />
-                    <input
-                      aria-label={`Corner ${index + 1} longitude`}
-                      type="number"
-                      step="0.000001"
-                      value={corner.lng}
-                      onChange={(e) => updatePolygonCorner(index, 'lng', Number(e.target.value))}
-                      className="min-w-0 w-full rounded border border-slate-200 px-2 py-1 font-mono text-[10px]"
-                      placeholder="Longitude"
-                    />
-                    {(curLoc.geofencePolygon?.length || 0) > 3 && (
-                      <button
-                        type="button"
-                        aria-label={`Remove corner ${index + 1}`}
-                        onClick={() => updateCurLoc(
-                          'geofencePolygon',
-                          (curLoc.geofencePolygon || []).filter((_, cornerIndex) => cornerIndex !== index)
-                        )}
-                        className="shrink-0 rounded px-1.5 py-1 text-[10px] text-red-600 hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[10px] text-emerald-800">
-                Center latitude/longitude and radius are used only when no polygon is configured.
-              </p>
+            <div className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+              Employees can mark attendance within <strong>{curLoc.allowedRadiusMeters ?? 1000} meters</strong> of these coordinates.
             </div>
           </div>
 

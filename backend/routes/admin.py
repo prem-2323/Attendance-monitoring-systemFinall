@@ -281,30 +281,6 @@ async def create_employee(payload: AddEmployeeAdminRequest):
                 upsert=True,
             )
 
-        # Also initialize an Absent record for today in attendance collection
-        if attendance_collection is not None:
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            existing_today = attendance_collection.find_one({
-                "employeeId": payload.employeeId.strip(),
-                "date": today_str,
-            })
-            if not existing_today:
-                attendance_collection.insert_one({
-                    "id": f"att-today-{int(datetime.now().timestamp() * 1000)}",
-                    "employee_id": payload.employeeId.strip(),
-                    "employeeId": payload.employeeId.strip(),
-                    "employeeName": payload.name.strip(),
-                    "department": payload.department or "Engineering",
-                    "date": today_str,
-                    "status": "Absent",
-                    "verifiedBy": "Face + GPS",
-                    "locationName": "Pending Check-in",
-                    "distanceMeters": 0,
-                    "withinRadius": False,
-                    "livenessVerified": False,
-                    "managerName": payload.managerName,
-                })
-
         return _clean_doc(new_doc)
     except HTTPException:
         raise

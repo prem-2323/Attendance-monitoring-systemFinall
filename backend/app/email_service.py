@@ -5,7 +5,7 @@ Stores and tracks notifications exclusively in MongoDB Atlas.
 import os
 import smtplib
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, time
 from email.message import EmailMessage
 from typing import Optional, Dict, Any
 from zoneinfo import ZoneInfo
@@ -61,6 +61,7 @@ def queue_attendance_emails(
     status: str,
     attendance_date: date,
     check_in: Optional[datetime] = None,
+    cutoff_time: Optional[time] = None,
 ):
     """
     Queue notifications for employee, admin(s), and manager into MongoDB Atlas.
@@ -79,7 +80,7 @@ def queue_attendance_emails(
     emp_name = str(employee.get("name") or employee.get("full_name") or "Employee")
     emp_email = str(employee.get("email") or "").strip()
 
-    cutoff_str = os.getenv("ATTENDANCE_CUTOFF", "11:40")
+    cutoff_str = cutoff_time.strftime("%I:%M %p") if cutoff_time else os.getenv("ATTENDANCE_CUTOFF", "11:40")
     date_str = attendance_date.strftime("%d %B %Y")
 
     if check_in:
@@ -297,12 +298,13 @@ def queue_attendance_emails(
             logger.error(f"[EmailQueue] Error queuing notification in MongoDB Atlas: {e}")
 
 
-def process_pending_emails(limit: int = 50):
+def process_pending_emails(limit: int = 50) -> Dict[str, int]:
     """
     Send queued emails and retain failures for retry in MongoDB Atlas.
     """
     if email_notifications_collection is None:
-        return
+        logger.error("[Email] Cannot process notifications: email_notifications_collection is unavailable.")
+        return {"attempted": 0, "sent": 0, "failed": 0}
 
     cursor = email_notifications_collection.find(
         {
@@ -312,6 +314,7 @@ def process_pending_emails(limit: int = 50):
     ).limit(limit)
 
     notifications = list(cursor)
+    result = {"attempted": 0, "sent": 0, "failed": 0}
 
     for notif in notifications:
         notif_id = notif["_id"]
@@ -325,6 +328,7 @@ def process_pending_emails(limit: int = 50):
         )
 
         attempts_now = notif.get("attempts", 0) + 1
+        result["attempted"] += 1
         try:
             send_email(
                 notif["recipient"],
@@ -341,7 +345,9 @@ def process_pending_emails(limit: int = 50):
                     }
                 },
             )
+            result["sent"] += 1
         except Exception as exc:
+            result["failed"] += 1
             err_msg = str(exc)[:1000]
             email_notifications_collection.update_one(
                 {"_id": notif_id},
@@ -356,3 +362,11 @@ def process_pending_emails(limit: int = 50):
                 f"[Email] Failed sending to {notif['recipient']} "
                 f"(attempt {attempts_now}/5): {exc}"
             )
+
+    logger.info(
+        "[Email] Queue processing complete: attempted=%s sent=%s failed=%s",
+        result["attempted"],
+        result["sent"],
+        result["failed"],
+    )
+    return result

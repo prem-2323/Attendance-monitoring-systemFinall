@@ -203,10 +203,24 @@ def list_employees():
     return [_clean_doc(r) for r in records]
 
 
-@router.post("/process-emails", summary="Manually process queued email deliveries in MongoDB Atlas")
-def trigger_process_emails():
-    process_pending_emails()
-    return {"message": "Email queue processed in MongoDB Atlas"}
+@router.post("/process-emails", summary="Process queued email deliveries")
+def trigger_process_emails(retry_failed: bool = Query(
+    False,
+    description="Reset failed notifications so they can be retried after SMTP settings are fixed",
+)):
+    if email_notifications_collection is None:
+        raise HTTPException(status_code=503, detail="Email notification database is unavailable.")
+    if retry_failed:
+        email_notifications_collection.update_many(
+            {"status": "failed"},
+            {"$set": {"status": "pending", "attempts": 0, "last_error": None}},
+        )
+    result = process_pending_emails()
+    return {
+        "message": "Email queue processing finished.",
+        "retryFailed": retry_failed,
+        **result,
+    }
 
 
 @router.post("/check-absent", summary="Manually trigger scheduled absence checker in MongoDB Atlas")
