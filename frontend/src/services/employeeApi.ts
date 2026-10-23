@@ -99,7 +99,10 @@ export interface SmartHoursResponse {
   smartConfig?: {
     expectedHoursPerDay: number;
     graceCheckInMinutes: number;
+    inTime: string;
+    outTime: string;
     standardStartTime: string;
+    standardEndTime: string;
     flexibleWindowMinutes: number;
   };
 }
@@ -145,6 +148,11 @@ export const employeeApi = {
     success: boolean;
     message: string;
     record: AttendanceRecord;
+    emailNotification?: {
+      status: string;
+      recipient?: string | null;
+      detail?: string;
+    };
   }> {
     const res = await apiFetch(`${API_BASE}/attendance/mark`, {
       method: 'POST',
@@ -233,7 +241,9 @@ export const employeeApi = {
     if (currentTime) query.append('currentTime', currentTime);
 
     const qs = query.toString();
-    const res = await apiFetch(`${API_BASE}/smart-hours/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`);
+    const res = await apiFetch(`${API_BASE}/smart-hours/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`, {
+      cache: 'no-store',
+    });
     if (!res.ok) {
       throw new Error(`Failed to fetch smart hours: ${res.statusText}`);
     }

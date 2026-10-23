@@ -328,11 +328,10 @@ def queue_checkout_summary_email(
     smart_config: Dict[str, Any],
     arrival_status: str,
     final_status: str,
-):
+) -> Dict[str, Optional[str]]:
     """Queue the check-out summary for the employee only."""
     if email_notifications_collection is None:
-        logger.warning("[Email] email_notifications_collection is not connected in MongoDB Atlas.")
-        return
+        raise RuntimeError("Email notification database is unavailable.")
 
     emp_code = str(
         employee.get("employeeId")
@@ -351,9 +350,19 @@ def queue_checkout_summary_email(
         })
         if employee_record:
             emp_email = str(employee_record.get("email") or "").strip()
+    if not emp_email and users_collection is not None:
+        employee_record = users_collection.find_one({
+            "$or": [
+                {"employeeId": emp_code},
+                {"employee_id": emp_code},
+                {"id": emp_code},
+            ]
+        })
+        if employee_record:
+            emp_email = str(employee_record.get("email") or "").strip()
     if not emp_email:
         logger.warning("[Email] No registered email address found for employee %s.", emp_code)
-        return
+        return {"event_key": None, "recipient": None, "status": "missing_email"}
 
     required_hours = smart_config.get("expectedHoursPerDay", 8)
     admin_start = smart_config.get("inTime") or smart_config.get("standardStartTime", "--")
@@ -371,23 +380,42 @@ def queue_checkout_summary_email(
         f"Total Time Worked: {shift.get('workedStr', '--')}\n"
         f"Attendance Status: {final_status}\n\n"
         f"Flexible Shift Active: {'Yes' if flexible_active else 'No'}\n"
-        f"Smart Working Hours\n"
-        f"Admin-configured standard hours: {admin_start} to {admin_end}\n"
-        f"Required working hours: {required_hours} hours\n"
-        f"Actual Arrival: Check-in at {check_in} ({arrival_status})\n"
-        f"Calculated Dynamic Target: Required check-out at {shift.get('expectedCheckout', '--')}\n\n"
+        f"Smart Working Hours\n\n"
         f"Why Smart Flexible Hours Matter\n"
-        f"Traditional clock systems can penalize employees who arrive later than the "
-        f"standard start time. Our smart flexible shift policy dynamically adapts the "
-        f"required check-out time to your actual check-in, so you are not penalized "
-        f"for arriving later as long as you complete your expected working hours.\n\n"
+        f"Traditional clock systems penalize employees who arrive at 12:00 PM with an "
+        f"automatic half-day absence. Our smart flexible shift policy dynamically "
+        f"adapts the required checkout threshold so that employees are not penalized "
+        f"as long as they complete their expected {required_hours} working hours.\n\n"
+        f"Policy Standard\n"
+        f"Required Hours = {required_hours}\n\n"
+        f"Actual Arrival\n"
+        f"Check-in = {check_in} ({arrival_status})\n\n"
+        f"Calculated Dynamic Target\n"
+        f"Required Check-out = {shift.get('expectedCheckout', '--')}\n\n"
+        f"Admin-configured standard hours: {admin_start} to {admin_end}\n"
+        f"The dynamic checkout target is calculated from your actual check-in time "
+        f"and the admin-configured required working hours.\n\n"
         f"Regards,\n"
         f"Attendance Monitoring System"
     )
     recipient = emp_email
     event_key = f"{attendance_date.isoformat()}:{emp_code}:checkout:employee:{recipient.lower()}"
-    if email_notifications_collection.find_one({"event_key": event_key}):
-        return
+    existing = email_notifications_collection.find_one({"event_key": event_key})
+    if existing:
+        existing_status = str(existing.get("status", "pending"))
+        if existing_status == "failed":
+            email_notifications_collection.update_one(
+                {"_id": existing["_id"], "status": "failed"},
+                {
+                    "$set": {"status": "pending", "attempts": 0, "last_error": None},
+                },
+            )
+            existing_status = "pending"
+        return {
+            "event_key": event_key,
+            "recipient": recipient,
+            "status": existing_status,
+        }
 
     doc = {
         "event_key": event_key,
@@ -405,12 +433,19 @@ def queue_checkout_summary_email(
         email_notifications_collection.insert_one(doc)
         logger.info("[EmailQueue] Queued employee checkout summary %s", event_key)
     except DuplicateKeyError:
-        pass
+        existing = email_notifications_collection.find_one({"event_key": event_key})
+        return {
+            "event_key": event_key,
+            "recipient": recipient,
+            "status": str(existing.get("status", "pending")) if existing else "pending",
+        }
     except Exception as exc:
-        logger.error("[EmailQueue] Error queuing checkout summary: %s", exc)
+        logger.exception("[EmailQueue] Error queuing checkout summary")
+        raise RuntimeError("Could not queue the employee checkout email.") from exc
+    return {"event_key": event_key, "recipient": recipient, "status": "pending"}
 
 
-def process_pending_emails(limit: int = 50) -> Dict[str, int]:
+def process_pending_emails(limit: int = 50, event_key: Optional[str] = None) -> Dict[str, int]:
     """
     Send queued emails and retain failures for retry in MongoDB Atlas.
     """
@@ -418,12 +453,13 @@ def process_pending_emails(limit: int = 50) -> Dict[str, int]:
         logger.error("[Email] Cannot process notifications: email_notifications_collection is unavailable.")
         return {"attempted": 0, "sent": 0, "failed": 0}
 
-    cursor = email_notifications_collection.find(
-        {
-            "status": {"$in": ["pending", "failed"]},
-            "attempts": {"$lt": 5},
-        }
-    ).limit(limit)
+    query = {
+        "status": {"$in": ["pending", "failed"]},
+        "attempts": {"$lt": 5},
+    }
+    if event_key:
+        query["event_key"] = event_key
+    cursor = email_notifications_collection.find(query).limit(limit)
 
     notifications = list(cursor)
     result = {"attempted": 0, "sent": 0, "failed": 0}

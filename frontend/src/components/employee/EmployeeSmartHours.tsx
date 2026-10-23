@@ -94,6 +94,10 @@ export const EmployeeSmartHours: React.FC = () => {
   useEffect(() => {
     setIsLoading(true);
     fetchShiftCalculation(simulatedCheckIn, simulatedCurrentTime);
+    const refreshTimer = window.setInterval(() => {
+      void fetchShiftCalculation(simulatedCheckIn, simulatedCurrentTime);
+    }, 30000);
+    return () => window.clearInterval(refreshTimer);
   }, [empId, simulatedCheckIn, simulatedCurrentTime]);
 
   const handleRefresh = async () => {
@@ -273,7 +277,7 @@ export const EmployeeSmartHours: React.FC = () => {
             </div>
             <p className="text-sm text-slate-600 leading-relaxed font-normal">
               Traditional clock systems penalize employees who arrive at 12:00 PM with an automatic half-day absence.
-              Our smart flexible shift policy dynamically adapts the required checkout threshold so that employees are not penalized as long as they complete their expected 8 working hours.
+              Our smart flexible shift policy dynamically adapts the required checkout threshold so that employees are not penalized as long as they complete their expected {metrics.targetHoursPerDay} working hours.
             </p>
 
             {/* Formula Section using small cards */}

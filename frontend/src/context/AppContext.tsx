@@ -69,7 +69,12 @@ interface AppContextType {
     faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
-  }) => Promise<{ success: boolean; message: string; record?: AttendanceRecord }>;
+  }) => Promise<{
+    success: boolean;
+    message: string;
+    record?: AttendanceRecord;
+    emailNotification?: { status: string; recipient?: string | null; detail?: string };
+  }>;
   applyLeave: (params: {
     employeeId: string;
     leaveType: LeaveRequest['leaveType'];
@@ -629,7 +634,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
-  }): Promise<{ success: boolean; message: string; record?: AttendanceRecord }> => {
+  }): Promise<{
+    success: boolean;
+    message: string;
+    record?: AttendanceRecord;
+    emailNotification?: { status: string; recipient?: string | null; detail?: string };
+  }> => {
     const emp = users.find((u) => u.employeeId === employeeId);
     if (!emp) {
       return { success: false, message: 'Employee not found' };
@@ -689,8 +699,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return {
           success: true,
-          message: res.message,
+          message: [
+            res.message,
+            isCheckOut ? res.emailNotification?.detail : undefined,
+          ].filter(Boolean).join(' '),
           record: res.record,
+          emailNotification: res.emailNotification,
         };
       }
       return {

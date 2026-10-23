@@ -72,6 +72,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
 
   // Result record after marking
   const [markedTimestamp, setMarkedTimestamp] = useState<string>('');
+  const [checkoutEmailStatus, setCheckoutEmailStatus] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -217,6 +218,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
       if (result.success) {
         hasAutoSubmittedRef.current = true;
         setVerificationStage('marked');
+        setCheckoutEmailStatus(isCheckOutMode ? result.emailNotification?.detail || '' : '');
         const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setMarkedTimestamp(timeNow);
       } else {
@@ -664,6 +666,13 @@ export const EmployeeMarkAttendance: React.FC = () => {
                     <div className="text-xs text-slate-500 mt-1">
                       {currentUser?.name} · {currentUser?.employeeId}
                     </div>
+                    {checkoutEmailStatus && (
+                      <div className={`text-xs font-semibold mt-2 ${
+                        checkoutEmailStatus.includes('sent') ? 'text-emerald-700' : 'text-amber-700'
+                      }`}>
+                        {checkoutEmailStatus}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

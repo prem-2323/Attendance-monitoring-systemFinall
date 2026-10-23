@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from backend.database import (
     users_collection,
@@ -22,6 +22,7 @@ from backend.database import (
     leave_requests_collection,
     settings_collection,
     employees_collection,
+    email_notifications_collection,
 )
 from backend.models.employee_portal import (
     MarkAttendanceRequest,
@@ -100,6 +101,11 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
     try:
         if attendance_collection is None:
             raise HTTPException(status_code=503, detail="Database connection unavailable")
+        if settings_collection is None:
+            raise HTTPException(status_code=503, detail="Smart-hours settings database unavailable")
+        settings_doc = settings_collection.find_one({"key": "global_settings"})
+        if settings_doc is None:
+            raise HTTPException(status_code=503, detail="Smart-hours settings are not configured")
 
         # 1. Lookup employee in users
         emp = users_collection.find_one({
@@ -236,7 +242,6 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         today_str = now.strftime("%Y-%m-%d")
 
         # 4. Smart-hours policy (dynamic from Atlas, never hardcoded).
-        settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
         from backend.services.smart_hours import (
             get_smart_config,
             classify_arrival,
@@ -293,13 +298,14 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 upsert=True,
             )
 
+            email_notification = {"status": "not_attempted", "recipient": None}
             try:
                 from backend.app.email_service import (
                     queue_checkout_summary_email,
                     process_pending_emails,
                 )
 
-                queue_checkout_summary_email(
+                email_notification = queue_checkout_summary_email(
                     employee=emp,
                     attendance_date=now.date(),
                     check_in=check_in_time,
@@ -309,14 +315,33 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                     arrival_status=arrival["arrivalStatus"],
                     final_status=final_status,
                 )
-                process_pending_emails()
-            except Exception as notify_err:
-                logger.warning(f"[Portal] Could not queue checkout summary email: {notify_err}")
+                event_key = email_notification.get("event_key")
+                if event_key and email_notification.get("status") in ("pending", "failed"):
+                    process_pending_emails(event_key=event_key)
+                    queued_email = email_notifications_collection.find_one({"event_key": event_key})
+                    if queued_email:
+                        email_notification["status"] = str(queued_email.get("status", "pending"))
+                        if email_notification["status"] == "failed":
+                            email_notification["detail"] = "SMTP delivery failed. Check backend email logs."
+            except Exception:
+                logger.exception("[Portal] Could not send employee checkout summary email")
+                email_notification = {
+                    "status": "error",
+                    "recipient": email_notification.get("recipient"),
+                    "detail": "Checkout was recorded, but the summary email could not be processed.",
+                }
+            if email_notification.get("status") == "missing_email":
+                email_notification["detail"] = "No employee email address is registered."
+            elif email_notification.get("status") == "sent":
+                email_notification["detail"] = "Checkout summary sent to the employee."
+            elif email_notification.get("status") in ("pending", "sending"):
+                email_notification["detail"] = "Checkout summary is queued for the employee."
 
             return {
                 "success": True,
                 "message": f"Check-out successfully recorded at {formatted_time}! Logged {hours_worked} worked. Status: {final_status}.",
                 "record": _clean_doc(updated_doc),
+                "emailNotification": email_notification,
             }
         else:
             # Check-in operation: arrival punctuality is recorded separately;
@@ -788,6 +813,7 @@ async def get_employee_dashboard(employee_id: str):
 
 @router.get("/smart-hours/{employee_id}")
 async def get_smart_hours_calculation(
+    response: Response,
     employee_id: str,
     checkIn: Optional[str] = None,
     currentTime: Optional[str] = None,
@@ -802,8 +828,14 @@ async def get_smart_hours_calculation(
             get_smart_config, compute_shift, classify_arrival,
             minutes_to_time_str,
         )
-        settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
+        if settings_collection is None:
+            raise HTTPException(status_code=503, detail="Smart-hours settings database unavailable")
+        settings_doc = settings_collection.find_one({"key": "global_settings"})
+        if settings_doc is None:
+            raise HTTPException(status_code=503, detail="Smart-hours settings are not configured")
         cfg = get_smart_config(settings_doc)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
         target_h = int(cfg.get("expectedHoursPerDay", 8))
 
         today_str = datetime.now(TZ).strftime("%Y-%m-%d")

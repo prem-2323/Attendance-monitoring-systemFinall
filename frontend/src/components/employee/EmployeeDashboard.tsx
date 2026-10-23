@@ -40,12 +40,12 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
 
   const empId = currentUser?.employeeId || '';
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (showLoading = true) => {
     if (!empId) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    if (showLoading) setIsLoading(true);
     try {
       const [dash, smart] = await Promise.all([
         employeeApi.getDashboard(empId),
@@ -62,6 +62,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
 
   useEffect(() => {
     fetchDashboardData();
+    if (!empId) return;
+    const refreshTimer = window.setInterval(() => {
+      void fetchDashboardData(false);
+    }, 30000);
+    return () => window.clearInterval(refreshTimer);
   }, [empId]);
 
   const handleRefresh = async () => {
@@ -90,11 +95,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const checkOutTime = todayRecord?.checkOut || '--';
   const hoursWorked = todayRecord?.hoursWorked || (liveSmartHours?.workedTime && checkInTime !== '--' ? liveSmartHours.workedTime : '--');
   const remainingTime = liveSmartHours?.remainingTime || (checkInTime !== '--' ? 'Pending' : '--');
-  const expectedCheckout = todayRecord?.checkOut
-    ? todayRecord.checkOut
-    : (checkInTime !== '--'
-        ? (liveSmartHours?.expectedCheckoutTime || smartHoursConfig?.outTime || '--')
-        : (smartHoursConfig?.outTime || '--'));
+  const liveShiftConfig = liveSmartHours?.smartConfig || smartHoursConfig;
+  const requiredHours = liveSmartHours?.targetHoursPerDay ?? liveShiftConfig.expectedHoursPerDay;
+  const expectedCheckout = checkInTime !== '--'
+    ? (liveSmartHours?.expectedCheckoutTime || liveShiftConfig.outTime || '--')
+    : (liveShiftConfig.outTime || '--');
   const completionPercent = checkInTime !== '--' ? (liveSmartHours?.completionPercent || 0) : 0;
 
   return (
@@ -211,7 +216,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                 {checkOutTime === '--'
                   ? (checkInTime !== '--'
                       ? `Expected ~${expectedCheckout}`
-                      : `Shift: ${smartHoursConfig?.inTime || '11:25 AM'} – ${smartHoursConfig?.outTime || '07:25 PM'}`)
+                      : `Shift: ${liveShiftConfig.inTime} – ${liveShiftConfig.outTime}`)
                   : 'Shift completed'}
               </div>
             </div>
@@ -228,7 +233,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                 {hoursWorked}
               </div>
               <div className="mt-2 text-xs font-normal text-slate-500">
-                Target: 8.0 Hours
+                Target: {Number(requiredHours).toFixed(1)} Hours
               </div>
             </div>
 
@@ -272,7 +277,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 text-left">
               <div className="space-y-1">
                 <span className="text-xs font-medium text-slate-500">Expected Shift</span>
-                <div className="text-base font-bold text-slate-900">8 Hours</div>
+                <div className="text-base font-bold text-slate-900">{requiredHours} Hours</div>
               </div>
 
               <div className="space-y-1">
@@ -300,7 +305,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
             <div className="space-y-2 pt-1">
               <div className="flex justify-between text-xs font-medium text-slate-600">
                 <span>{completionPercent}% shift completed</span>
-                <span className="text-slate-400">Target: 8h 00m</span>
+                <span className="text-slate-400">Target: {Number(requiredHours).toFixed(1)}h</span>
               </div>
               <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div
