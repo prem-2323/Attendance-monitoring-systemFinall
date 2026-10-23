@@ -79,12 +79,15 @@ def _resolve_legacy_route(path: str):
         return "/api/auth/users"
     if path == "/login":
         return "/api/auth/login"
+    if path == "/auto-login" or path.startswith("/auto-login/"):
+        return f"/api/auth{path}"
     if path.startswith("/register/"):
         return f"/api/auth{path}"
     if path.startswith("/forgot-password/"):
         return f"/api/auth{path}"
     if path == "/profile":
         return "/api/auth/profile"
+
 
     # Admin endpoints
     if path == "/audits":
@@ -184,7 +187,10 @@ root_compat.add_api_route("/register/admin", auth_router.register_admin, methods
 root_compat.add_api_route("/register/manager", auth_router.register_manager, methods=["POST"], summary="Register manager (root alias)")
 root_compat.add_api_route("/register/employee", auth_router.register_employee, methods=["POST"], summary="Register employee (root alias)")
 root_compat.add_api_route("/login", auth_router.login, methods=["POST"], summary="Login (root alias)")
+root_compat.add_api_route("/auto-login", auth_router.auto_login, methods=["POST", "GET"], summary="Auto login (root alias)")
+root_compat.add_api_route("/auto-login/{role}", auth_router.auto_login, methods=["POST", "GET"], summary="Auto login by role (root alias)")
 root_compat.add_api_route("/forgot-password/request", auth_router.forgot_password_request, methods=["POST"], summary="Forgot password request (root alias)")
+
 root_compat.add_api_route("/forgot-password/verify", auth_router.forgot_password_verify, methods=["POST"], summary="Forgot password verify (root alias)")
 root_compat.add_api_route("/forgot-password/reset", auth_router.forgot_password_reset, methods=["POST"], summary="Forgot password reset (root alias)")
 root_compat.add_api_route("/users", auth_router.get_all_users, methods=["GET"], summary="List users (root alias)")

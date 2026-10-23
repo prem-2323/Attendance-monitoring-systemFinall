@@ -21,39 +21,7 @@ export const DEFAULT_OFFICE: OfficeLocation = {
   ],
 };
 
-export const DEFAULT_OFFICE_LOCATIONS: OfficeLocation[] = [
-  DEFAULT_OFFICE,
-  {
-    id: 'loc-2',
-    name: 'Location 2 - Tech Park Campus',
-    address: 'Electronics & Software City Tower, Coimbatore',
-    lat: 11.276377,
-    lng: 77.609151,
-    allowedRadiusMeters: 1000,
-    isActive: true,
-    geofencePolygon: [],
-  },
-  {
-    id: 'loc-3',
-    name: 'Location 3 - Downtown Facility',
-    address: 'Metro Commercial Plaza, Coimbatore',
-    lat: 11.26489,
-    lng: 77.598211,
-    allowedRadiusMeters: 1000,
-    isActive: true,
-    geofencePolygon: [],
-  },
-  {
-    id: 'loc-4',
-    name: 'Location 4 - Innovation Hub',
-    address: 'Cyber City Research & Development Center, Bengaluru',
-    lat: 11.2812,
-    lng: 77.6158,
-    allowedRadiusMeters: 1000,
-    isActive: true,
-    geofencePolygon: [],
-  },
-];
+export const DEFAULT_OFFICE_LOCATIONS: OfficeLocation[] = [DEFAULT_OFFICE];
 
 // All mock dummy records removed — live data is retrieved dynamically from MongoDB Atlas
 export const INITIAL_USERS: User[] = [];

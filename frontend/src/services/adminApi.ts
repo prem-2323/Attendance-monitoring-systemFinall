@@ -249,7 +249,7 @@ export const adminApi = {
   },
 
   /**
-   * Update all office locations (Location 1, 2, 3, 4)
+   * Update the single configured office location
    */
   async updateOfficeLocations(locations: OfficeLocation[]): Promise<OfficeLocation[]> {
     const res = await apiFetch(`${API_BASE}/settings/locations`, {

@@ -582,11 +582,14 @@ async def get_settings():
         _box = get_configured_polygon()
         default_settings = {
             "officeLocation": {
+                "id": "loc-1",
                 "name": "Head Office Block",
                 "address": "Office Campus Premises, Tamil Nadu",
                 "lat": sum(p[0] for p in _box) / len(_box),
                 "lng": sum(p[1] for p in _box) / len(_box),
                 "allowedRadiusMeters": OFFICE_RADIUS_METERS,
+                "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in _box],
+                "isActive": True,
             },
             "geofencePolygon": [{"lat": lat, "lng": lng} for lat, lng in _box],
             "smartHoursConfig": {
@@ -601,6 +604,8 @@ async def get_settings():
             "inTime": "11:25 AM",
             "outTime": "07:25 PM",
         }
+        default_settings["officeLocations"] = [default_settings["officeLocation"]]
+        default_settings["locations"] = default_settings["officeLocations"]
 
         if settings_collection is None:
             return default_settings
@@ -614,67 +619,31 @@ async def get_settings():
         in_time = smart_cfg.get("inTime") or smart_cfg.get("standardStartTime") or doc.get("inTime") or "11:25 AM"
         out_time = smart_cfg.get("outTime") or smart_cfg.get("standardEndTime") or doc.get("outTime") or "07:25 PM"
 
-        # Multi-location 1, 2, 3, 4 support
+        # Use the first saved location as the single canonical office.
         office_locations = doc.get("officeLocations")
         if not office_locations or not isinstance(office_locations, list) or len(office_locations) == 0:
             primary = doc.get("officeLocation", default_settings["officeLocation"])
-            c_lat = primary.get("lat", 11.270377)
-            c_lng = primary.get("lng", 77.603522)
             office_locations = [
                 {
-                    "id": "loc-1",
-                    "name": primary.get("name", "Location 1 - Head Office Block"),
-                    "address": primary.get("address", "Office Campus Premises, Tamil Nadu"),
-                    "lat": c_lat,
-                    "lng": c_lng,
-                    "allowedRadiusMeters": primary.get("allowedRadiusMeters", 1000),
-                    "geofencePolygon": doc.get("geofencePolygon", default_settings["geofencePolygon"]),
-                    "isActive": True,
-                },
-                {
-                    "id": "loc-2",
-                    "name": "Location 2 - Tech Park Branch",
-                    "address": "IT Expressway Tech Corridor, Chennai",
-                    "lat": round(c_lat + 0.005043, 6),
-                    "lng": round(c_lng + 0.005628, 6),
-                    "allowedRadiusMeters": 1000,
-                    "geofencePolygon": [],
-                    "isActive": True,
-                },
-                {
-                    "id": "loc-3",
-                    "name": "Location 3 - Downtown Facility",
-                    "address": "Metro Commercial Plaza, Coimbatore",
-                    "lat": round(c_lat - 0.005487, 6),
-                    "lng": round(c_lng - 0.005312, 6),
-                    "allowedRadiusMeters": 1000,
-                    "geofencePolygon": [],
-                    "isActive": True,
-                },
-                {
-                    "id": "loc-4",
-                    "name": "Location 4 - Innovation Hub",
-                    "address": "Cyber City Research & Development Center, Bengaluru",
-                    "lat": round(c_lat + 0.010823, 6),
-                    "lng": round(c_lng + 0.012278, 6),
-                    "allowedRadiusMeters": 1000,
-                    "geofencePolygon": [],
+                    **default_settings["officeLocation"],
+                    **primary,
+                    "geofencePolygon": primary.get(
+                        "geofencePolygon",
+                        doc.get("geofencePolygon", default_settings["geofencePolygon"]),
+                    ),
                     "isActive": True,
                 },
             ]
 
-        # Location 1 is the canonical office box. Derive the single
-        # officeLocation object from it so every consumer (header, employee
-        # attendance, admin settings) sees identical name/radius/polygon data.
         primary_location = dict(office_locations[0] or {})
         primary_location.setdefault("id", "loc-1")
-        primary_location.setdefault("isActive", True)
+        primary_location["isActive"] = True
         primary_location.setdefault("allowedRadiusMeters", 1000)
         if not primary_location.get("geofencePolygon"):
             primary_location["geofencePolygon"] = doc.get(
                 "geofencePolygon", default_settings["geofencePolygon"]
             )
-        office_locations[0] = primary_location
+        office_locations = [primary_location]
 
         return {
             "officeLocation": primary_location,
@@ -693,7 +662,7 @@ async def get_settings():
 @router.get("/settings/locations")
 async def get_office_locations():
     """
-    Direct endpoint to fetch all 4 configured office locations (Location 1, 2, 3, 4).
+    Fetch the single configured office location.
     """
     try:
         if settings_collection is None:
@@ -714,44 +683,33 @@ async def get_office_locations():
 @router.put("/settings/locations")
 async def update_office_locations(payload: OfficeLocationsUpdateRequest):
     """
-    Updates all office locations (Location 1, 2, 3, 4) in MongoDB Atlas.
+    Updates the single office location in MongoDB Atlas.
     """
     try:
         if settings_collection is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
+        if len(payload.locations) != 1:
+            raise HTTPException(status_code=422, detail="Exactly one office location must be configured.")
 
-        clean_locs = []
-        for i, loc in enumerate(payload.locations):
-            loc_dict = {
-                "id": loc.id or f"loc-{i + 1}",
-                "name": loc.name or f"Location {i + 1}",
-                "address": loc.address or "Office Campus Premises",
-                "lat": float(loc.lat),
-                "lng": float(loc.lng),
-                "allowedRadiusMeters": int(loc.allowedRadiusMeters or 1000),
-                "isActive": bool(loc.isActive if loc.isActive is not None else True),
-            }
-            if loc.geofencePolygon:
-                clean_locs.append({
-                    **loc_dict,
-                    "geofencePolygon": [
-                        {"lat": float(p["lat"]), "lng": float(p["lng"])}
-                        for p in loc.geofencePolygon
-                        if isinstance(p, dict) and "lat" in p and "lng" in p
-                    ]
-                })
-            else:
-                loc_dict["geofencePolygon"] = []
-                clean_locs.append(loc_dict)
-
-        primary_loc = clean_locs[0] if clean_locs else {
-            "name": "Head Office Block",
-            "address": "Office Campus Premises, Tamil Nadu",
-            "lat": 11.270377,
-            "lng": 77.603522,
-            "allowedRadiusMeters": 1000,
-            "geofencePolygon": [],
+        loc = payload.locations[0]
+        polygon = [
+            {"lat": float(p["lat"]), "lng": float(p["lng"])}
+            for p in (loc.geofencePolygon or [])
+            if isinstance(p, dict) and "lat" in p and "lng" in p
+        ]
+        if polygon and len(polygon) < 3:
+            raise HTTPException(status_code=422, detail="A geofence polygon must contain at least three coordinates.")
+        primary_loc = {
+            "id": loc.id or "loc-1",
+            "name": loc.name or "Office",
+            "address": loc.address or "Office Campus Premises",
+            "lat": float(loc.lat),
+            "lng": float(loc.lng),
+            "allowedRadiusMeters": int(loc.allowedRadiusMeters or 1000),
+            "isActive": True,
+            "geofencePolygon": polygon,
         }
+        clean_locs = [primary_loc]
 
         set_fields: Dict[str, Any] = {
             "officeLocations": clean_locs,
@@ -834,7 +792,7 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
                 else base_primary.get("allowedRadiusMeters", 1000)
             ),
             "geofencePolygon": clean_poly,
-            "isActive": bool(base_primary.get("isActive", True)),
+            "isActive": True,
         }
 
         set_dict: Dict[str, Any] = {
@@ -842,13 +800,7 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
             "geofencePolygon": clean_poly,
         }
 
-        # Keep Location 1 in sync whenever the primary office is edited.
-        if existing_locs:
-            merged_locs = [dict(loc) for loc in existing_locs]
-            merged_locs[0] = {**merged_locs[0], **update_dict}
-            set_dict["officeLocations"] = merged_locs
-        else:
-            set_dict["officeLocations"] = [update_dict]
+        set_dict["officeLocations"] = [update_dict]
 
         # If inTime or outTime provided in office update payload, persist them
         if payload.inTime:
@@ -863,6 +815,8 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
         # If a full locations list was passed, it becomes the source of truth.
         in_locs = payload.locations or payload.officeLocations
         if in_locs:
+            if len(in_locs) != 1:
+                raise HTTPException(status_code=422, detail="Exactly one office location must be configured.")
             clean_locs = []
             for i, loc in enumerate(in_locs):
                 clean_locs.append({
@@ -872,7 +826,7 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
                     "lat": float(loc.lat),
                     "lng": float(loc.lng),
                     "allowedRadiusMeters": int(loc.allowedRadiusMeters or 1000),
-                    "isActive": bool(loc.isActive if loc.isActive is not None else True),
+                    "isActive": True,
                     "geofencePolygon": [
                         {"lat": float(p["lat"]), "lng": float(p["lng"])}
                         for p in (loc.geofencePolygon or [])
@@ -1033,4 +987,3 @@ async def reset_database():
     except Exception as e:
         logger.exception("Failed to reset database")
         raise HTTPException(status_code=500, detail=str(e))
-

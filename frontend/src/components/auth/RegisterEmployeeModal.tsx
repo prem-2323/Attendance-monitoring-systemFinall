@@ -27,7 +27,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
   onClose,
   onRegisteredSuccess,
 }) => {
-  const { addRegisteredUserToState, login, users } = useApp();
+  const { addRegisteredUserToState, login, users, refreshUsers } = useApp();
   const nextEmpNum = users.reduce((max, u) => {
     const match = u.employeeId?.match(/\d+/);
     const num = match ? parseInt(match[0], 10) : 0;
@@ -316,15 +316,21 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
 
       const newEmp = res.user;
       addRegisteredUserToState(newEmp);
+      try {
+        await refreshUsers();
+      } catch {
+        // Continue if background refresh is pending
+      }
 
       if (autoLogin) {
-        login(newEmp.email, undefined, newEmp);
+        login(newEmp.email, 'employee', newEmp);
       } else if (onRegisteredSuccess) {
         onRegisteredSuccess(newEmp.email);
       }
 
       onClose();
     } catch (err: any) {
+
       setErrorMsg(err.message || 'Failed to register employee in MongoDB Atlas.');
     } finally {
       setIsSubmitting(false);

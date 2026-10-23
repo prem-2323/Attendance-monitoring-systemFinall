@@ -41,10 +41,14 @@ def serialize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
     user = dict(doc)
     user.pop("_id", None)
     user.pop("password_hash", None)
+    user.pop("face_embedding", None)
+    user.pop("faceEmbedding", None)
     
     # Ensure expected keys exist
     if "employeeId" not in user and "employee_id" in user:
         user["employeeId"] = user["employee_id"]
+    if "employee_id" not in user and "employeeId" in user:
+        user["employee_id"] = user["employeeId"]
     if "id" not in user:
         user["id"] = user.get("employeeId", f"user-{os.urandom(4).hex()}")
     if "active" not in user:
@@ -54,4 +58,10 @@ def serialize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
     if "faceRegistered" not in user:
         user["faceRegistered"] = False
         
+    # Synchronize avatar fields
+    avatar_val = user.get("avatarUrl") or user.get("avatar") or ""
+    user["avatarUrl"] = avatar_val
+    user["avatar"] = avatar_val
+        
     return user
+

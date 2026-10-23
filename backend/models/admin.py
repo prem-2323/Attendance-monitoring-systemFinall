@@ -41,7 +41,7 @@ class AttendanceOverrideRequest(BaseModel):
 
 class LocationItem(BaseModel):
     id: Optional[str] = None
-    name: str = "Location 1"
+    name: str = "Office"
     address: Optional[str] = "Office Campus Premises"
     lat: float = 11.270377
     lng: float = 77.603522
@@ -78,4 +78,3 @@ class SmartHoursUpdateRequest(BaseModel):
     inTime: Optional[str] = None
     outTime: Optional[str] = None
     flexibleWindowMinutes: Optional[int] = None
-

@@ -64,6 +64,24 @@ export const authApi = {
   },
 
   /**
+   * 1-Click Instant Auto-Login for Admin, Manager, or Employee from MongoDB Atlas
+   */
+  autoLogin: async (role: 'admin' | 'manager' | 'employee' = 'admin', identifier?: string): Promise<AuthResponse> => {
+    const res = await apiFetch(`${API_BASE}/auto-login/${role}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, identifier }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || `Auto-login failed for ${role}.`);
+    }
+    return data;
+  },
+
+
+  /**
    * Register a new Administrator in MongoDB Atlas
    */
   registerAdmin: async (data: RegisterAdminData): Promise<AuthResponse> => {

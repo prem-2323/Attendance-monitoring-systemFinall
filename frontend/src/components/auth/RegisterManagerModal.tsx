@@ -14,7 +14,7 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
   onClose,
   onRegisteredSuccess,
 }) => {
-  const { addRegisteredUserToState, login, users } = useApp();
+  const { addRegisteredUserToState, login, users, refreshUsers } = useApp();
   const nextMgrNum = users.reduce((max, u) => {
     const m = u.employeeId?.match(/MGR(\d+)/i) || u.employeeId?.match(/\d+/);
     const num = m ? parseInt(m[1] || m[0], 10) : 0;
@@ -57,9 +57,14 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
 
       const newMgr = res.user;
       addRegisteredUserToState(newMgr);
+      try {
+        await refreshUsers();
+      } catch {
+        // Continue if background refresh is pending
+      }
 
       if (autoLogin) {
-        login(newMgr.email, undefined, newMgr);
+        login(newMgr.email, 'manager', newMgr);
       } else if (onRegisteredSuccess) {
         onRegisteredSuccess(newMgr.email);
       }
@@ -71,6 +76,7 @@ export const RegisterManagerModal: React.FC<RegisterManagerModalProps> = ({
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">

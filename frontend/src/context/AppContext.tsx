@@ -186,7 +186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     adminApi.getSettings()
       .then((settings) => {
         if (settings?.officeLocations && Array.isArray(settings.officeLocations) && settings.officeLocations.length > 0) {
-          setOfficeLocations(settings.officeLocations);
+          setOfficeLocations(settings.officeLocations.slice(0, 1));
           setOfficeLocation(settings.officeLocation || settings.officeLocations[0]);
         } else if (settings?.officeLocation) {
           setOfficeLocation(settings.officeLocation);
@@ -263,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const settings = await adminApi.getSettings();
       if (settings?.officeLocations && Array.isArray(settings.officeLocations) && settings.officeLocations.length > 0) {
-        setOfficeLocations(settings.officeLocations);
+        setOfficeLocations(settings.officeLocations.slice(0, 1));
         setOfficeLocation(settings.officeLocation || settings.officeLocations[0]);
       } else if (settings?.officeLocation) {
         setOfficeLocation(settings.officeLocation);
@@ -353,7 +353,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!saved) return DEFAULT_OFFICE_LOCATIONS;
     try {
       const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_OFFICE_LOCATIONS;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed.slice(0, 1) : DEFAULT_OFFICE_LOCATIONS;
     } catch {
       return DEFAULT_OFFICE_LOCATIONS;
     }
@@ -875,40 +875,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = await adminApi.updateOfficeSettings(newLocation);
       // Merge so optional fields (geofencePolygon/isActive/id) survive a
       // partial settings response instead of being wiped.
-      setOfficeLocation((prev) => ({ ...prev, ...updated }));
-      setOfficeLocations((prev) => {
-        if (!prev || prev.length === 0) return [updated];
-        const next = [...prev];
-        next[0] = { ...next[0], ...updated };
-        return next;
-      });
+      const primary = { ...DEFAULT_OFFICE, ...newLocation, ...updated };
+      setOfficeLocation(primary);
+      setOfficeLocations([primary]);
     } catch (err) {
       console.warn('[AppContext] Failed to persist office settings to Atlas:', err);
-      setOfficeLocation((prev) => ({ ...prev, ...newLocation }));
-      setOfficeLocations((prev) => {
-        if (!prev || prev.length === 0) return [{ ...DEFAULT_OFFICE, ...newLocation }];
-        const next = [...prev];
-        next[0] = { ...next[0], ...newLocation };
-        return next;
-      });
+      const primary = { ...DEFAULT_OFFICE, ...newLocation };
+      setOfficeLocation(primary);
+      setOfficeLocations([primary]);
     }
   };
 
   const updateOfficeLocations = async (locations: OfficeLocation[]): Promise<OfficeLocation[]> => {
     try {
-      const updated = await adminApi.updateOfficeLocations(locations);
-      setOfficeLocations(updated);
-      if (updated && updated.length > 0) {
-        setOfficeLocation(updated[0]);
+      const singleLocation = locations.slice(0, 1);
+      const updated = await adminApi.updateOfficeLocations(singleLocation);
+      const primary = updated.slice(0, 1);
+      setOfficeLocations(primary);
+      if (primary.length > 0) {
+        setOfficeLocation(primary[0]);
       }
-      return updated;
+      return primary;
     } catch (err) {
       console.warn('[AppContext] Failed to persist office locations to Atlas:', err);
-      setOfficeLocations(locations);
-      if (locations && locations.length > 0) {
-        setOfficeLocation(locations[0]);
+      const singleLocation = locations.slice(0, 1);
+      setOfficeLocations(singleLocation);
+      if (singleLocation.length > 0) {
+        setOfficeLocation(singleLocation[0]);
       }
-      return locations;
+      return singleLocation;
     }
   };
 

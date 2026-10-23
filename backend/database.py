@@ -80,48 +80,16 @@ def seed_initial_settings():
         c_lat, c_lng = polygon_centroid(box)
         polygon_corners = [{"lat": lat, "lng": lng} for lat, lng in box]
 
-        default_locations = [
-            {
-                "id": "loc-1",
-                "name": "Location 1 - Head Office Block",
-                "address": OFFICE_ADDRESS,
-                "lat": c_lat,
-                "lng": c_lng,
-                "allowedRadiusMeters": OFFICE_RADIUS_METERS,
-                "geofencePolygon": polygon_corners,
-                "isActive": True,
-            },
-            {
-                "id": "loc-2",
-                "name": "Location 2 - Tech Park Branch",
-                "address": "IT Expressway Tech Corridor, Chennai",
-                "lat": round(c_lat + 0.005043, 6),
-                "lng": round(c_lng + 0.005628, 6),
-                "allowedRadiusMeters": 1000,
-                "geofencePolygon": [],
-                "isActive": True,
-            },
-            {
-                "id": "loc-3",
-                "name": "Location 3 - Downtown Facility",
-                "address": "Metro Commercial Plaza, Coimbatore",
-                "lat": round(c_lat - 0.005487, 6),
-                "lng": round(c_lng - 0.005312, 6),
-                "allowedRadiusMeters": 1000,
-                "geofencePolygon": [],
-                "isActive": True,
-            },
-            {
-                "id": "loc-4",
-                "name": "Location 4 - Innovation Hub",
-                "address": "Cyber City Research & Development Center, Bengaluru",
-                "lat": round(c_lat + 0.010823, 6),
-                "lng": round(c_lng + 0.012278, 6),
-                "allowedRadiusMeters": 1000,
-                "geofencePolygon": [],
-                "isActive": True,
-            },
-        ]
+        default_locations = [{
+            "id": "loc-1",
+            "name": "Office",
+            "address": OFFICE_ADDRESS,
+            "lat": c_lat,
+            "lng": c_lng,
+            "allowedRadiusMeters": OFFICE_RADIUS_METERS,
+            "geofencePolygon": polygon_corners,
+            "isActive": True,
+        }]
 
         existing = settings_collection.find_one({"key": "global_settings"})
         if existing is None:
@@ -143,7 +111,7 @@ def seed_initial_settings():
                 "outTime": "07:25 PM",
             }
             settings_collection.insert_one(doc)
-            print("[DB] Locations 1, 2, 3, 4 and shift settings seeded into MongoDB Atlas.")
+            print("[DB] Office location and shift settings seeded into MongoDB Atlas.")
         elif not existing.get("geofencePolygon"):
             # Backfill the box on existing deployments without touching admin edits.
             settings_collection.update_one(
@@ -152,24 +120,30 @@ def seed_initial_settings():
             )
             print("[DB] Office geofence box backfilled into existing settings.")
 
-        # Ensure officeLocations (1, 2, 3, 4) exist in existing database deployment
         if existing is not None:
             existing_locs = existing.get("officeLocations")
-            if not existing_locs or not isinstance(existing_locs, list) or len(existing_locs) < 4:
-                # Merge existing primary location into Location 1 if present
-                cur_primary = existing.get("officeLocation") or {}
-                if cur_primary.get("name"):
-                    default_locations[0]["name"] = cur_primary.get("name", default_locations[0]["name"])
-                    default_locations[0]["address"] = cur_primary.get("address", default_locations[0]["address"])
-                    default_locations[0]["lat"] = cur_primary.get("lat", default_locations[0]["lat"])
-                    default_locations[0]["lng"] = cur_primary.get("lng", default_locations[0]["lng"])
-                    default_locations[0]["allowedRadiusMeters"] = cur_primary.get("allowedRadiusMeters", default_locations[0]["allowedRadiusMeters"])
-
-                settings_collection.update_one(
-                    {"key": "global_settings"},
-                    {"$set": {"officeLocations": default_locations}},
-                )
-                print("[DB] Locations 1, 2, 3, 4 backfilled into existing settings.")
+            cur_primary = (
+                existing_locs[0]
+                if isinstance(existing_locs, list) and existing_locs
+                else existing.get("officeLocation") or {}
+            )
+            primary = {**default_locations[0], **cur_primary}
+            primary["id"] = "loc-1"
+            primary["isActive"] = True
+            primary["geofencePolygon"] = (
+                primary.get("geofencePolygon")
+                or existing.get("geofencePolygon")
+                or polygon_corners
+            )
+            settings_collection.update_one(
+                {"key": "global_settings"},
+                {"$set": {
+                    "officeLocation": primary,
+                    "officeLocations": [primary],
+                    "geofencePolygon": primary["geofencePolygon"],
+                }},
+            )
+            print("[DB] Existing office settings migrated to one location.")
 
         # Migrate legacy default shift timings (09:00 AM + 15 min grace or
         # 10:55 AM + 5 min grace) to the current policy (11:25 AM + 15 min
@@ -212,22 +186,25 @@ def seed_initial_settings():
                 )
                 print(f"[DB] Settings synchronized with inTime: {start_val}, outTime: {end_val}.")
 
-        # Keep the primary officeLocation document aligned with Location 1 so
-        # the admin UI, header and geofence validator always read the same box.
+        # Keep both legacy and list settings aligned with the one office location.
         doc = settings_collection.find_one({"key": "global_settings"})
         if doc:
             locs = doc.get("officeLocations") or []
             if locs:
                 primary = dict(locs[0])
-                primary.setdefault("id", "loc-1")
-                primary.setdefault("isActive", True)
+                primary["id"] = "loc-1"
+                primary["isActive"] = True
                 primary.setdefault("allowedRadiusMeters", OFFICE_RADIUS_METERS)
                 if not primary.get("geofencePolygon"):
                     primary["geofencePolygon"] = polygon_corners
-                if doc.get("officeLocation") != primary:
+                if doc.get("officeLocation") != primary or len(locs) != 1:
                     settings_collection.update_one(
                         {"key": "global_settings"},
-                        {"$set": {"officeLocation": primary}},
+                        {"$set": {
+                            "officeLocation": primary,
+                            "officeLocations": [primary],
+                            "geofencePolygon": primary["geofencePolygon"],
+                        }},
                     )
             if not doc.get("geofencePolygon"):
                 settings_collection.update_one(
@@ -292,5 +269,4 @@ if db is not None:
         seed_initial_settings()
     except Exception as idx_err:
         print(f"[DB] Index note: {idx_err}")
-
 

@@ -62,59 +62,43 @@ def _calc_hours_difference(time_start_str: str, time_end_str: str) -> str:
 
 def verify_geofence_internal(latitude: float, longitude: float):
     """
-    Validates GPS coordinates against all active office locations (Location 1, 2, 3, 4).
-    Returns (is_valid: bool, distance: int, location_name: str, allowed_radius: int).
+    Validates GPS coordinates against the one configured office location.
+    A configured polygon is authoritative; radius is used only without a polygon.
     """
     settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
-    office_locations = []
-    if settings_doc and settings_doc.get("officeLocations"):
-        office_locations = [loc for loc in settings_doc["officeLocations"] if loc.get("isActive", True)]
-    if not office_locations and settings_doc and "officeLocation" in settings_doc:
-        office_locations = [settings_doc["officeLocation"]]
+    office_locations = settings_doc.get("officeLocations") if settings_doc else []
+    loc = office_locations[0] if isinstance(office_locations, list) and office_locations else (
+        settings_doc.get("officeLocation") if settings_doc else None
+    )
+    if not loc:
+        return False, 0, "Office Campus", 0
 
     from backend.services.geofence import point_in_polygon, haversine_meters
 
-    valid_matches = []
-    min_distance = float("inf")
-    nearest_name = "Office Campus"
-    nearest_radius = 1000
+    loc_name = loc.get("name", "Office Location")
+    loc_radius = int(loc.get("allowedRadiusMeters", 1000))
+    loc_lat = float(loc.get("lat", 11.270377))
+    loc_lng = float(loc.get("lng", 77.603522))
+    dist = round(haversine_meters(latitude, longitude, loc_lat, loc_lng))
 
-    for loc in office_locations:
-        loc_name = loc.get("name", "Office Location")
-        loc_radius = int(loc.get("allowedRadiusMeters", 1000))
-        loc_lat = float(loc.get("lat", 11.270377))
-        loc_lng = float(loc.get("lng", 77.603522))
+    if loc.get("isActive") is False:
+        return False, dist, loc_name, loc_radius
 
-        loc_box = None
-        if loc.get("geofencePolygon"):
-            try:
-                loc_box = [(float(p["lat"]), float(p["lng"])) for p in loc["geofencePolygon"] if "lat" in p and "lng" in p]
-            except Exception:
-                loc_box = None
-        if not loc_box and loc.get("id") == "loc-1" and settings_doc and settings_doc.get("geofencePolygon"):
-            try:
-                loc_box = [(float(p["lat"]), float(p["lng"])) for p in settings_doc["geofencePolygon"] if "lat" in p and "lng" in p]
-            except Exception:
-                loc_box = None
+    raw_polygon = loc.get("geofencePolygon") or (
+        settings_doc.get("geofencePolygon") if settings_doc else []
+    )
+    try:
+        loc_box = [
+            (float(p["lat"]), float(p["lng"]))
+            for p in raw_polygon
+            if "lat" in p and "lng" in p
+        ]
+    except (TypeError, ValueError, KeyError):
+        loc_box = []
 
-        inside_box = point_in_polygon(latitude, longitude, loc_box) if loc_box else False
-        dist = round(haversine_meters(latitude, longitude, loc_lat, loc_lng))
-
-        if dist < min_distance:
-            min_distance = dist
-            nearest_name = loc_name
-            nearest_radius = loc_radius
-
-        if inside_box or (dist <= loc_radius):
-            valid_matches.append((dist, loc_name, loc_radius, inside_box))
-
-    if valid_matches:
-        # Prioritize polygon box match if present, then minimum distance
-        valid_matches.sort(key=lambda x: (not x[3], x[0]))
-        best_dist, best_name, best_radius, _ = valid_matches[0]
-        return True, best_dist, best_name, best_radius
-
-    return False, min_distance, nearest_name, nearest_radius
+    if len(loc_box) >= 3:
+        return point_in_polygon(latitude, longitude, loc_box), dist, loc_name, loc_radius
+    return dist <= loc_radius, dist, loc_name, loc_radius
 
 
 # ── 1. Mark Attendance (Face + GPS Check-in / Check-out) ──────────────────────
@@ -136,27 +120,24 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         if not emp:
             raise HTTPException(status_code=404, detail=f"Employee '{payload.employeeId}' not found.")
 
-        settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
-
-        # 2. Multi-location geofence check (Location 1, 2, 3, 4)
-        if payload.latitude is not None and payload.longitude is not None:
-            is_valid, dist, loc_name, allowed_radius = verify_geofence_internal(payload.latitude, payload.longitude)
-            if not is_valid:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Outside office geofence: your GPS position ({payload.latitude:.6f}, {payload.longitude:.6f}) "
-                        f"is {dist}m from nearest location ({loc_name}), exceeding the allowed {allowed_radius}m radius."
-                    ),
-                )
-            payload.distanceMeters = dist
-            payload.withinRadius = True
-            payload.locationName = loc_name
-        elif not payload.withinRadius and payload.distanceMeters > 1000:
+        if payload.latitude is None or payload.longitude is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"GPS check failed: Current distance {round(payload.distanceMeters)}m exceeds allowed radius of 1000m.",
+                detail="GPS coordinates are required to mark attendance at the configured office.",
             )
+        is_valid, dist, loc_name, allowed_radius = verify_geofence_internal(payload.latitude, payload.longitude)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Outside the configured office geofence: your GPS position "
+                    f"({payload.latitude:.6f}, {payload.longitude:.6f}) is {dist}m from "
+                    f"{loc_name} (allowed radius when no polygon is configured: {allowed_radius}m)."
+                ),
+            )
+        payload.distanceMeters = dist
+        payload.withinRadius = True
+        payload.locationName = loc_name
 
         if not payload.livenessVerified:
             raise HTTPException(
@@ -777,7 +758,7 @@ async def get_employee_dashboard(employee_id: str):
             "name": "Head Office Block",
             "allowedRadiusMeters": 1000,
         }) if settings_doc else {"name": "Head Office Block", "allowedRadiusMeters": 1000}
-        office_locations = settings_doc.get("officeLocations") if settings_doc else [office_location]
+        office_locations = [office_location]
 
         return {
             "employeeId": employee_id,

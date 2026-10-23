@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronRight,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
@@ -26,17 +27,45 @@ import { UserRole } from '../../types';
 
 
 export const LoginView: React.FC = () => {
-  const { login } = useApp();
+  const { login, users } = useApp();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoLoggingRole, setAutoLoggingRole] = useState<UserRole | null>(null);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
 
   // Modals
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [registerRole, setRegisterRole] = useState<UserRole | null>(null);
+
+  const handleAutoLogin = async (role: 'admin' | 'manager' | 'employee') => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setAutoLoggingRole(role);
+
+    try {
+      const res = await authApi.autoLogin(role);
+      if (res.user) {
+        setSuccessMsg(`Auto-login successful: Welcome back, ${res.user.name}!`);
+        login(res.user.email, role, res.user);
+      } else {
+        throw new Error(`Auto-login failed: No user returned for role '${role}'.`);
+      }
+    } catch (err: any) {
+      // Graceful fallback to local user in context if network glitch
+      const fallbackUser = users.find((u) => u.role === role);
+      if (fallbackUser) {
+        setSuccessMsg(`Auto-login active: ${fallbackUser.name} (${role}).`);
+        login(fallbackUser.email, role, fallbackUser);
+      } else {
+        setErrorMsg(err.message || `Auto-login failed for ${role}. Please check connection.`);
+      }
+    } finally {
+      setAutoLoggingRole(null);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +248,83 @@ export const LoginView: React.FC = () => {
           {/* ===================== TAB 1: SIGN IN ===================== */}
           {authTab === 'login' && (
             <>
+              {/* Instant 1-Click Auto-Login Card */}
+              <div className="mb-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-slate-50 p-3.5 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-indigo-600 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-950">
+                      1-Click Auto-Login
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    MongoDB Atlas
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mb-2.5">
+                  Instant zero-password access with verified database accounts:
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Admin Auto-Login Button */}
+                  <button
+                    type="button"
+                    disabled={autoLoggingRole !== null || isSubmitting}
+                    onClick={() => handleAutoLogin('admin')}
+                    className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-slate-900/15 bg-white text-slate-900 hover:bg-slate-900 hover:text-white transition-all shadow-xs cursor-pointer group disabled:opacity-50"
+                  >
+                    {autoLoggingRole === 'admin' ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-900 group-hover:border-white border-t-transparent my-0.5" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4 text-slate-900 group-hover:text-emerald-400 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="text-[11px] font-bold mt-1">Admin</span>
+                    <span className="text-[9px] text-slate-500 group-hover:text-slate-300">Auto-Login</span>
+                  </button>
+
+                  {/* Manager Auto-Login Button */}
+                  <button
+                    type="button"
+                    disabled={autoLoggingRole !== null || isSubmitting}
+                    onClick={() => handleAutoLogin('manager')}
+                    className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-blue-200 bg-white text-blue-900 hover:bg-blue-600 hover:text-white transition-all shadow-xs cursor-pointer group disabled:opacity-50"
+                  >
+                    {autoLoggingRole === 'manager' ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 group-hover:border-white border-t-transparent my-0.5" />
+                    ) : (
+                      <UserCheck className="h-4 w-4 text-blue-600 group-hover:text-white group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="text-[11px] font-bold mt-1">Manager</span>
+                    <span className="text-[9px] text-slate-500 group-hover:text-blue-100">Auto-Login</span>
+                  </button>
+
+                  {/* Employee Auto-Login Button */}
+                  <button
+                    type="button"
+                    disabled={autoLoggingRole !== null || isSubmitting}
+                    onClick={() => handleAutoLogin('employee')}
+                    className="flex flex-col items-center justify-center p-2.5 rounded-xl border border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-600 hover:text-white transition-all shadow-xs cursor-pointer group disabled:opacity-50"
+                  >
+                    {autoLoggingRole === 'employee' ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-600 group-hover:border-white border-t-transparent my-0.5" />
+                    ) : (
+                      <UserIcon className="h-4 w-4 text-emerald-600 group-hover:text-white group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="text-[11px] font-bold mt-1">Employee</span>
+                    <span className="text-[9px] text-slate-500 group-hover:text-emerald-100">Auto-Login</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative my-3 text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative inline-block bg-white px-2 text-[10px] uppercase font-semibold text-slate-400">
+                  Or Sign In Manually
+                </div>
+              </div>
+
               {/* Form */}
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 {errorMsg && (
