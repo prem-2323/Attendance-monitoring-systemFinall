@@ -70,6 +70,80 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Legacy Route Rewrite Middleware ──────────────────────────────────────────
+# Gracefully forwards legacy un-prefixed requests (/users, /settings, /leave/*, etc.)
+# to their canonical /api/* routes to avoid 404s from older or cached frontends.
+def _resolve_legacy_route(path: str):
+    # Auth endpoints
+    if path == "/users":
+        return "/api/auth/users"
+    if path == "/login":
+        return "/api/auth/login"
+    if path.startswith("/register/"):
+        return f"/api/auth{path}"
+    if path.startswith("/forgot-password/"):
+        return f"/api/auth{path}"
+    if path == "/profile":
+        return "/api/auth/profile"
+
+    # Admin endpoints
+    if path == "/audits":
+        return "/api/admin/audits"
+    if path == "/settings" or path.startswith("/settings/"):
+        return f"/api/admin{path}"
+    if path == "/dashboard/stats":
+        return "/api/admin/dashboard/stats"
+    if path == "/attendance/override":
+        return "/api/admin/attendance/override"
+    if path == "/reset":
+        return "/api/admin/reset"
+    if path == "/employees" or path.startswith("/employees/"):
+        return f"/api/admin{path}"
+
+    # Leave & Attendance endpoints
+    if path == "/leave/review":
+        return "/api/manager/leave/review"
+    if path == "/leave/apply":
+        return "/api/employee/leave/apply"
+    if path.startswith("/leave/"):
+        return f"/api/employee{path}"
+    if path.startswith("/leaves/"):
+        return f"/api/manager{path}"
+    if path == "/face/detect":
+        return "/api/employee/face/detect"
+    if path == "/attendance/mark":
+        return "/api/employee/attendance/mark"
+    if path.startswith("/smart-hours/"):
+        return f"/api/employee{path}"
+    if path.startswith("/employee-history/"):
+        return f"/api/manager{path}"
+
+    # Reports
+    if path == "/analytics" or path.startswith("/analytics/"):
+        return f"/api/reports{path}"
+
+    return None
+
+
+class LegacyRouteRewriteMiddleware:
+    """Pure ASGI middleware that rewrites un-prefixed legacy URL paths before routing."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if not path.startswith("/api/"):
+                new_path = _resolve_legacy_route(path)
+                if new_path:
+                    scope["path"] = new_path
+                    if "raw_path" in scope:
+                        scope["raw_path"] = new_path.encode("ascii")
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(LegacyRouteRewriteMiddleware)
+
 # ── CORS — Vercel frontend + local development ────────────────────────────────
 # The frontend uses localStorage (no cookies), so credentials are disabled.
 # Production Vercel origins are accepted via CORS_ORIGINS / CORS_ORIGIN_REGEX.

@@ -124,7 +124,7 @@ export const employeeApi = {
    */
   async detectFace(imageBase64: string, employeeId?: string): Promise<FaceDetectResponse> {
     try {
-      const res = await apiFetch('/face/detect', {
+      const res = await apiFetch(`${API_BASE}/face/detect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64, employeeId }),
@@ -146,7 +146,7 @@ export const employeeApi = {
     message: string;
     record: AttendanceRecord;
   }> {
-    const res = await apiFetch('/attendance/mark', {
+    const res = await apiFetch(`${API_BASE}/attendance/mark`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -171,7 +171,7 @@ export const employeeApi = {
     if (month) query.append('month', month);
 
     const qs = query.toString();
-    const res = await apiFetch(`/attendance/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`);
+    const res = await apiFetch(`${API_BASE}/attendance/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch attendance history: ${res.statusText}`);
     }
@@ -186,7 +186,7 @@ export const employeeApi = {
     message: string;
     leaveRequest: LeaveRequest;
   }> {
-    const res = await apiFetch('/leave/apply', {
+    const res = await apiFetch(`${API_BASE}/leave/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -202,7 +202,7 @@ export const employeeApi = {
    * Retrieve employee leave records and remaining annual quotas
    */
   async getLeaveRequests(employeeId: string): Promise<EmployeeLeaveResponse> {
-    const res = await apiFetch(`/leave/${encodeURIComponent(employeeId)}`);
+    const res = await apiFetch(`${API_BASE}/leave/${encodeURIComponent(employeeId)}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch leave requests: ${res.statusText}`);
     }
@@ -213,7 +213,7 @@ export const employeeApi = {
    * Fetch employee dashboard metrics from MongoDB Atlas
    */
   async getDashboard(employeeId: string): Promise<EmployeeDashboardResponse> {
-    const res = await apiFetch(`/dashboard/${encodeURIComponent(employeeId)}`);
+    const res = await apiFetch(`${API_BASE}/dashboard/${encodeURIComponent(employeeId)}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch employee dashboard: ${res.statusText}`);
     }
@@ -233,7 +233,7 @@ export const employeeApi = {
     if (currentTime) query.append('currentTime', currentTime);
 
     const qs = query.toString();
-    const res = await apiFetch(`/smart-hours/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`);
+    const res = await apiFetch(`${API_BASE}/smart-hours/${encodeURIComponent(employeeId)}${qs ? `?${qs}` : ''}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch smart hours: ${res.statusText}`);
     }

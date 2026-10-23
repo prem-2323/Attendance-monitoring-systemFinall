@@ -43,7 +43,7 @@ export const managerApi = {
    * Fetches real-time team attendance summary for the manager from MongoDB Atlas
    */
   async getDashboard(managerId: string): Promise<ManagerDashboardData> {
-    const res = await apiFetch(`/dashboard/${encodeURIComponent(managerId)}`);
+    const res = await apiFetch(`${API_BASE}/dashboard/${encodeURIComponent(managerId)}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch manager dashboard: ${res.statusText}`);
     }
@@ -54,7 +54,7 @@ export const managerApi = {
    * Fetches direct report employees under this manager with real calculated attendance rates
    */
   async getTeamEmployees(managerId: string): Promise<User[]> {
-    const res = await apiFetch(`/employees/${encodeURIComponent(managerId)}`);
+    const res = await apiFetch(`${API_BASE}/employees/${encodeURIComponent(managerId)}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch team directory: ${res.statusText}`);
     }
@@ -77,7 +77,7 @@ export const managerApi = {
     if (statusFilter && statusFilter !== 'All') query.append('status', statusFilter);
     const qs = query.toString();
 
-    const res = await apiFetch(`/leaves/${encodeURIComponent(managerId)}${qs ? `?${qs}` : ''}`);
+    const res = await apiFetch(`${API_BASE}/leaves/${encodeURIComponent(managerId)}${qs ? `?${qs}` : ''}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch team leave requests: ${res.statusText}`);
     }
@@ -92,7 +92,7 @@ export const managerApi = {
     message: string;
     leaveRequest: LeaveRequest;
   }> {
-    const res = await apiFetch('/leave/review', {
+    const res = await apiFetch(`${API_BASE}/leave/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -108,7 +108,7 @@ export const managerApi = {
    * Queries employee attendance track record for modal inspection
    */
   async getEmployeeHistory(employeeId: string): Promise<EmployeeAttendanceAnalysis> {
-    const res = await apiFetch(`/employee-history/${encodeURIComponent(employeeId)}`);
+    const res = await apiFetch(`${API_BASE}/employee-history/${encodeURIComponent(employeeId)}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch employee attendance analysis: ${res.statusText}`);
     }

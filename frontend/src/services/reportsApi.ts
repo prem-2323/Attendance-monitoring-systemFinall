@@ -63,7 +63,7 @@ export const reportsApi = {
     }
 
     const queryStr = searchParams.toString();
-    const endpoint = `/analytics${queryStr ? `?${queryStr}` : ''}`;
+    const endpoint = `${API_BASE}/analytics${queryStr ? `?${queryStr}` : ''}`;
     const res = await apiFetch(endpoint);
     const data = await res.json();
     if (!res.ok) {

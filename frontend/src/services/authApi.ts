@@ -50,7 +50,7 @@ export const authApi = {
    * Log in user using email or Employee ID and optional password
    */
   login: async (identifier: string, password?: string, role?: string): Promise<AuthResponse> => {
-    const res = await apiFetch('/login', {
+    const res = await apiFetch(`${API_BASE}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password, role }),
@@ -67,7 +67,7 @@ export const authApi = {
    * Register a new Administrator in MongoDB Atlas
    */
   registerAdmin: async (data: RegisterAdminData): Promise<AuthResponse> => {
-    const res = await apiFetch('/register/admin', {
+    const res = await apiFetch(`${API_BASE}/register/admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -84,7 +84,7 @@ export const authApi = {
    * Register a new Manager in MongoDB Atlas
    */
   registerManager: async (data: RegisterManagerData): Promise<AuthResponse> => {
-    const res = await apiFetch('/register/manager', {
+    const res = await apiFetch(`${API_BASE}/register/manager`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -101,7 +101,7 @@ export const authApi = {
    * Register a new Employee in MongoDB Atlas
    */
   registerEmployee: async (data: RegisterEmployeeData): Promise<AuthResponse> => {
-    const res = await apiFetch('/register/employee', {
+    const res = await apiFetch(`${API_BASE}/register/employee`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -118,7 +118,7 @@ export const authApi = {
    * Request OTP code for forgot password
    */
   requestForgotPasswordOtp: async (identifier: string): Promise<{ success: boolean; message: string; code: string; email: string }> => {
-    const res = await apiFetch('/forgot-password/request', {
+    const res = await apiFetch(`${API_BASE}/forgot-password/request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier }),
@@ -135,7 +135,7 @@ export const authApi = {
    * Verify reset OTP code
    */
   verifyResetCode: async (identifier: string, code: string): Promise<{ success: boolean; message: string }> => {
-    const res = await apiFetch('/forgot-password/verify', {
+    const res = await apiFetch(`${API_BASE}/forgot-password/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, code }),
@@ -152,7 +152,7 @@ export const authApi = {
    * Complete password reset in MongoDB Atlas
    */
   resetPassword: async (identifier: string, code: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-    const res = await apiFetch('/forgot-password/reset', {
+    const res = await apiFetch(`${API_BASE}/forgot-password/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, code, newPassword }),
@@ -169,7 +169,7 @@ export const authApi = {
    * Get all live users from MongoDB Atlas
    */
   getAllUsers: async (): Promise<User[]> => {
-    const res = await apiFetch('/users');
+    const res = await apiFetch(`${API_BASE}/users`);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.detail || 'Failed to fetch users from MongoDB Atlas');
@@ -181,7 +181,7 @@ export const authApi = {
    * Get all department managers from MongoDB Atlas
    */
   getManagers: async (): Promise<User[]> => {
-    const res = await apiFetch('/managers');
+    const res = await apiFetch(`${API_BASE}/managers`);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.detail || 'Failed to fetch managers from MongoDB Atlas');
@@ -199,7 +199,7 @@ export const authApi = {
     department?: string;
     name?: string;
   }): Promise<{ success: boolean; message: string; user: User }> => {
-    const res = await apiFetch('/profile', {
+    const res = await apiFetch(`${API_BASE}/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

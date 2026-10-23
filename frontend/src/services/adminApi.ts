@@ -68,7 +68,7 @@ export const adminApi = {
    * Get real-time stats and recent activities for admin dashboard
    */
   async getDashboardStats(): Promise<DashboardStatsResponse> {
-    const res = await apiFetch('/dashboard/stats');
+    const res = await apiFetch(`${API_BASE}/dashboard/stats`);
     if (!res.ok) {
       throw new Error(`Failed to fetch dashboard stats: ${res.statusText}`);
     }
@@ -79,7 +79,7 @@ export const adminApi = {
    * Fetch all employees from MongoDB Atlas
    */
   async getEmployees(): Promise<User[]> {
-    const res = await apiFetch('/employees');
+    const res = await apiFetch(`${API_BASE}/employees`);
     if (!res.ok) {
       throw new Error(`Failed to fetch employees: ${res.statusText}`);
     }
@@ -90,7 +90,7 @@ export const adminApi = {
    * Create new employee with facial biometric registration
    */
   async createEmployee(payload: AddEmployeePayload): Promise<User> {
-    const res = await apiFetch('/employees', {
+    const res = await apiFetch(`${API_BASE}/employees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -106,7 +106,7 @@ export const adminApi = {
    * Delete employee from MongoDB Atlas
    */
   async deleteEmployee(identifier: string): Promise<{ success: boolean; message: string }> {
-    const res = await apiFetch(`/employees/${encodeURIComponent(identifier)}`, {
+    const res = await apiFetch(`${API_BASE}/employees/${encodeURIComponent(identifier)}`, {
       method: 'DELETE',
     });
     const data = await res.json();
@@ -120,7 +120,7 @@ export const adminApi = {
    * Fetch all managers from MongoDB Atlas
    */
   async getManagers(): Promise<User[]> {
-    const res = await apiFetch('/managers');
+    const res = await apiFetch(`${API_BASE}/managers`);
     if (!res.ok) {
       throw new Error(`Failed to fetch managers: ${res.statusText}`);
     }
@@ -131,7 +131,7 @@ export const adminApi = {
    * Provision a new department manager
    */
   async createManager(payload: AddManagerPayload): Promise<User> {
-    const res = await apiFetch('/managers', {
+    const res = await apiFetch(`${API_BASE}/managers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -147,7 +147,7 @@ export const adminApi = {
    * Delete manager from MongoDB Atlas
    */
   async deleteManager(identifier: string): Promise<{ success: boolean; message: string }> {
-    const res = await apiFetch(`/managers/${encodeURIComponent(identifier)}`, {
+    const res = await apiFetch(`${API_BASE}/managers/${encodeURIComponent(identifier)}`, {
       method: 'DELETE',
     });
     const data = await res.json();
@@ -175,7 +175,7 @@ export const adminApi = {
     if (params?.department && params.department !== 'All') query.append('department', params.department);
 
     const qs = query.toString();
-    const res = await apiFetch(`/attendance${qs ? `?${qs}` : ''}`);
+    const res = await apiFetch(`${API_BASE}/attendance${qs ? `?${qs}` : ''}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch attendance: ${res.statusText}`);
     }
@@ -191,7 +191,7 @@ export const adminApi = {
     record: AttendanceRecord;
     audit: ApprovalAudit;
   }> {
-    const res = await apiFetch('/attendance/override', {
+    const res = await apiFetch(`${API_BASE}/attendance/override`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -207,7 +207,7 @@ export const adminApi = {
    * Fetch approval audit trail logs
    */
   async getApprovalAudits(): Promise<ApprovalAudit[]> {
-    const res = await apiFetch('/audits');
+    const res = await apiFetch(`${API_BASE}/audits`);
     if (!res.ok) {
       throw new Error(`Failed to fetch approval audits: ${res.statusText}`);
     }
@@ -225,7 +225,7 @@ export const adminApi = {
     inTime?: string;
     outTime?: string;
   }> {
-    const res = await apiFetch('/settings');
+    const res = await apiFetch(`${API_BASE}/settings`);
     if (!res.ok) {
       throw new Error(`Failed to fetch settings: ${res.statusText}`);
     }
@@ -236,7 +236,7 @@ export const adminApi = {
    * Update office GPS location & radius
    */
   async updateOfficeSettings(location: Partial<OfficeLocation> & { locations?: OfficeLocation[] }): Promise<OfficeLocation> {
-    const res = await apiFetch('/settings/office', {
+    const res = await apiFetch(`${API_BASE}/settings/office`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(location),
@@ -252,7 +252,7 @@ export const adminApi = {
    * Update all office locations (Location 1, 2, 3, 4)
    */
   async updateOfficeLocations(locations: OfficeLocation[]): Promise<OfficeLocation[]> {
-    const res = await apiFetch('/settings/locations', {
+    const res = await apiFetch(`${API_BASE}/settings/locations`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ locations }),
@@ -268,7 +268,7 @@ export const adminApi = {
    * Update smart hours policy
    */
   async updateSmartHoursSettings(config: Partial<SmartHoursConfig>): Promise<SmartHoursConfig> {
-    const res = await apiFetch('/settings/smart-hours', {
+    const res = await apiFetch(`${API_BASE}/settings/smart-hours`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
@@ -284,7 +284,7 @@ export const adminApi = {
    * Reset MongoDB Atlas data to baseline seed
    */
   async resetDatabase(): Promise<{ success: boolean; message: string }> {
-    const res = await apiFetch('/reset', {
+    const res = await apiFetch(`${API_BASE}/reset`, {
       method: 'POST',
     });
     const data = await res.json();
