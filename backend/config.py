@@ -2,9 +2,21 @@
 Configuration settings for the Attendance Monitoring System.
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+_BACKEND_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _BACKEND_DIR.parent
+
+_BACKEND_ENV = _BACKEND_DIR / ".env"
+_ROOT_ENV = _ROOT_DIR / ".env"
+
+if _BACKEND_ENV.exists():
+    load_dotenv(_BACKEND_ENV)
+elif _ROOT_ENV.exists():
+    load_dotenv(_ROOT_ENV)
+else:
+    load_dotenv()
 
 # MongoDB Configuration
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")

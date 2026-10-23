@@ -21,7 +21,10 @@ for _p in [str(_APP_DIR), str(_BACKEND_DIR), str(_ROOT_DIR)]:
 from backend.database import users_collection, attendance_collection
 from backend.app.email_service import queue_attendance_emails, process_pending_emails
 
-load_dotenv()
+if (_BACKEND_DIR / ".env").exists():
+    load_dotenv(_BACKEND_DIR / ".env")
+else:
+    load_dotenv()
 logger = logging.getLogger("absence_scheduler")
 
 TZ_NAME = os.getenv("TIMEZONE", "Asia/Kolkata")
