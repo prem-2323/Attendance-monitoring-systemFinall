@@ -38,6 +38,8 @@ class SmartHoursSimulationRequest(BaseModel):
 
 
 class FaceDetectRequest(BaseModel):
-    imageBase64: str = Field(..., min_length=10, description="Base64 encoded JPEG/PNG frame from webcam")
+    imageBase64: Optional[str] = Field(None, description="Base64 encoded JPEG/PNG frame from webcam")
+    faceImageBase64: Optional[str] = None
+    image: Optional[str] = None
     employeeId: Optional[str] = None
 

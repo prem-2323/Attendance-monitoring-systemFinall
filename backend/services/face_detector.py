@@ -63,22 +63,23 @@ def detect_faces(image_bgr: np.ndarray) -> list[dict]:
     _load_model()
     results = []
 
-    # Method 1: SSD MobileNet V1 DNN
+    # Method 1: SSD MobileNet V1 DNN (high accuracy, deep learning)
     if _use_dnn and _net is not None:
         try:
             h, w = image_bgr.shape[:2]
+            # Standard OpenCV Caffe Face Detector mean is BGR: (104.0, 117.0, 123.0)
             blob = cv2.dnn.blobFromImage(
                 cv2.resize(image_bgr, (300, 300)),
                 scalefactor=1.0,
                 size=(300, 300),
-                mean=(104.0, 177.0, 123.0),
+                mean=(104.0, 117.0, 123.0),
             )
             _net.setInput(blob)
             detections = _net.forward()
 
             for i in range(detections.shape[2]):
                 confidence = float(detections[0, 0, i, 2])
-                if confidence < 0.5:
+                if confidence < 0.35:
                     continue
                 box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
                 x1, y1, x2, y2 = box.astype(int)
@@ -99,6 +100,9 @@ def detect_faces(image_bgr: np.ndarray) -> list[dict]:
         try:
             rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
             locations = _fr_lib.face_locations(rgb, model="hog")
+            if not locations and min(image_bgr.shape[:2]) < 400:
+                # Upsample once if low-res frame
+                locations = _fr_lib.face_locations(rgb, number_of_times_to_upsample=1, model="hog")
             for top, right, bottom, left in locations:
                 results.append({
                     "box": (int(left), int(top), int(right - left), int(bottom - top)),
@@ -109,14 +113,28 @@ def detect_faces(image_bgr: np.ndarray) -> list[dict]:
         except Exception as e:
             logger.warning(f"[FaceDetector] dlib detection error: {e}")
 
-    # Method 3: Haar Cascade fallback
+    # Method 3: Multi-stage Haar Cascade fallback
     try:
         cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
-        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
+        
+        # Stage A: standard grayscale with relaxed minSize
+        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(24, 24))
+        
+        # Stage B: try with CLAHE contrast enhancement if no faces found
+        if len(faces) == 0:
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced = clahe.apply(gray)
+            faces = cascade.detectMultiScale(enhanced, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
+
+        # Stage C: upscale small frame if webcam canvas is 320x240 or lower
+        if len(faces) == 0 and max(image_bgr.shape[:2]) <= 360:
+            up = cv2.resize(gray, (0, 0), fx=2.0, fy=2.0)
+            up_faces = cascade.detectMultiScale(up, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+            faces = [(int(x/2), int(y/2), int(w/2), int(h/2)) for (x, y, w, h) in up_faces]
+
         for (x, y, w, h) in faces:
-            results.append({"box": (int(x), int(y), int(w), int(h)), "confidence": 0.9})
+            results.append({"box": (int(x), int(y), int(w), int(h)), "confidence": 0.88})
     except Exception as e:
         logger.warning(f"[FaceDetector] Haar Cascade fallback error: {e}")
 
@@ -165,6 +183,11 @@ def extract_face_embedding_from_b64(raw_b64: str) -> tuple[list | None, str | No
         import base64
         cleaned = raw_b64.strip()
         payload_b64 = cleaned.split(",", 1)[1] if "," in cleaned else cleaned
+        payload_b64 = payload_b64.replace(" ", "+")
+        missing_pad = len(payload_b64) % 4
+        if missing_pad:
+            payload_b64 += "=" * (4 - missing_pad)
+
         img_bytes = base64.b64decode(payload_b64)
         if len(img_bytes) == 0:
             return None, None
@@ -177,19 +200,19 @@ def extract_face_embedding_from_b64(raw_b64: str) -> tuple[list | None, str | No
         from backend.services.face_landmark import align_face
         from backend.services import face_recognition as fr_service
 
-        face_crop = None
+        rgb_face = None
         if detections:
             best = max(detections, key=lambda d: d.get("confidence", 0.9))
             aligned = align_face(img, best["box"])
-            face_crop = aligned if aligned is not None else crop_face(img, best["box"])
+            if aligned is not None:
+                rgb_face = aligned  # already in RGB format from align_face
+            else:
+                crop = crop_face(img, best["box"])
+                if crop is not None and crop.size > 0:
+                    rgb_face = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
 
-        if face_crop is None:
-            face_crop = img
-
-        if len(face_crop.shape) == 3 and face_crop.shape[2] == 3:
-            rgb_face = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-        else:
-            rgb_face = face_crop
+        if rgb_face is None:
+            rgb_face = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         emb = fr_service.get_face_embedding(rgb_face)
         if emb is not None:
