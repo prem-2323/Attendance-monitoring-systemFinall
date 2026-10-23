@@ -34,6 +34,8 @@ from backend.models.admin import (
     AttendanceOverrideRequest,
     OfficeSettingsUpdateRequest,
     SmartHoursUpdateRequest,
+    OfficeLocationsUpdateRequest,
+    LocationItem,
 )
 
 logger = logging.getLogger("admin_routes")
@@ -490,7 +492,7 @@ async def override_attendance(payload: AttendanceOverrideRequest):
         emp = users_collection.find_one({"employeeId": payload.employeeId}) if users_collection is not None else None
         emp_name = emp.get("name", payload.employeeId) if emp else payload.employeeId
         emp_dept = emp.get("department", "Engineering") if emp else "Engineering"
-        manager_name = emp.get("managerName", "Rajesh Sharma (Admin)") if emp else "Rajesh Sharma (Admin)"
+        manager_name = emp.get("managerName", "System Administrator") if emp else "System Administrator"
 
         record_id = f"att-override-{payload.employeeId}-{payload.date.replace('-', '')}"
         updated_record = {
@@ -528,7 +530,7 @@ async def override_attendance(payload: AttendanceOverrideRequest):
             "requestType": f"Manual Attendance Regularization ({payload.status})",
             "decision": "Approved",
             "managerId": "user-admin",
-            "managerName": "Rajesh Sharma (Admin)",
+            "managerName": "System Administrator",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "time": datetime.now().strftime("%I:%M %p"),
             "reason": payload.reason,
@@ -571,11 +573,12 @@ async def list_approval_audits():
 @router.get("/settings")
 async def get_settings():
     """
-    Retrieves global office geofencing coordinates and smart hours policy from MongoDB Atlas.
+    Retrieves global office geofencing coordinates, shift in-time/out-time, and smart hours policy from MongoDB Atlas.
     """
     try:
         from backend.services.geofence import get_configured_polygon
         from backend.config import OFFICE_RADIUS_METERS
+        from backend.services.smart_hours import get_smart_config
         _box = get_configured_polygon()
         default_settings = {
             "officeLocation": {
@@ -589,9 +592,14 @@ async def get_settings():
             "smartHoursConfig": {
                 "expectedHoursPerDay": 8,
                 "graceCheckInMinutes": 15,
-                "standardStartTime": "09:00 AM",
+                "standardStartTime": "11:25 AM",
+                "standardEndTime": "07:25 PM",
+                "inTime": "11:25 AM",
+                "outTime": "07:25 PM",
                 "flexibleWindowMinutes": 180,
             },
+            "inTime": "11:25 AM",
+            "outTime": "07:25 PM",
         }
 
         if settings_collection is None:
@@ -602,55 +610,293 @@ async def get_settings():
             settings_collection.insert_one({"key": "global_settings", **default_settings})
             return default_settings
 
+        smart_cfg = get_smart_config(doc)
+        in_time = smart_cfg.get("inTime") or smart_cfg.get("standardStartTime") or doc.get("inTime") or "11:25 AM"
+        out_time = smart_cfg.get("outTime") or smart_cfg.get("standardEndTime") or doc.get("outTime") or "07:25 PM"
+
+        # Multi-location 1, 2, 3, 4 support
+        office_locations = doc.get("officeLocations")
+        if not office_locations or not isinstance(office_locations, list) or len(office_locations) == 0:
+            primary = doc.get("officeLocation", default_settings["officeLocation"])
+            c_lat = primary.get("lat", 11.270377)
+            c_lng = primary.get("lng", 77.603522)
+            office_locations = [
+                {
+                    "id": "loc-1",
+                    "name": primary.get("name", "Location 1 - Head Office Block"),
+                    "address": primary.get("address", "Office Campus Premises, Tamil Nadu"),
+                    "lat": c_lat,
+                    "lng": c_lng,
+                    "allowedRadiusMeters": primary.get("allowedRadiusMeters", 1000),
+                    "geofencePolygon": doc.get("geofencePolygon", default_settings["geofencePolygon"]),
+                    "isActive": True,
+                },
+                {
+                    "id": "loc-2",
+                    "name": "Location 2 - Tech Park Branch",
+                    "address": "IT Expressway Tech Corridor, Chennai",
+                    "lat": round(c_lat + 0.005043, 6),
+                    "lng": round(c_lng + 0.005628, 6),
+                    "allowedRadiusMeters": 1000,
+                    "geofencePolygon": [],
+                    "isActive": True,
+                },
+                {
+                    "id": "loc-3",
+                    "name": "Location 3 - Downtown Facility",
+                    "address": "Metro Commercial Plaza, Coimbatore",
+                    "lat": round(c_lat - 0.005487, 6),
+                    "lng": round(c_lng - 0.005312, 6),
+                    "allowedRadiusMeters": 1000,
+                    "geofencePolygon": [],
+                    "isActive": True,
+                },
+                {
+                    "id": "loc-4",
+                    "name": "Location 4 - Innovation Hub",
+                    "address": "Cyber City Research & Development Center, Bengaluru",
+                    "lat": round(c_lat + 0.010823, 6),
+                    "lng": round(c_lng + 0.012278, 6),
+                    "allowedRadiusMeters": 1000,
+                    "geofencePolygon": [],
+                    "isActive": True,
+                },
+            ]
+
+        # Location 1 is the canonical office box. Derive the single
+        # officeLocation object from it so every consumer (header, employee
+        # attendance, admin settings) sees identical name/radius/polygon data.
+        primary_location = dict(office_locations[0] or {})
+        primary_location.setdefault("id", "loc-1")
+        primary_location.setdefault("isActive", True)
+        primary_location.setdefault("allowedRadiusMeters", 1000)
+        if not primary_location.get("geofencePolygon"):
+            primary_location["geofencePolygon"] = doc.get(
+                "geofencePolygon", default_settings["geofencePolygon"]
+            )
+        office_locations[0] = primary_location
+
         return {
-            "officeLocation": doc.get("officeLocation", default_settings["officeLocation"]),
-            "geofencePolygon": doc.get("geofencePolygon", default_settings["geofencePolygon"]),
-            "smartHoursConfig": doc.get("smartHoursConfig", default_settings["smartHoursConfig"]),
+            "officeLocation": primary_location,
+            "officeLocations": office_locations,
+            "locations": office_locations,
+            "geofencePolygon": primary_location["geofencePolygon"],
+            "smartHoursConfig": smart_cfg,
+            "inTime": in_time,
+            "outTime": out_time,
         }
     except Exception as e:
         logger.exception("Failed to get settings")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/settings/office")
-async def update_office_settings(payload: OfficeSettingsUpdateRequest):
+@router.get("/settings/locations")
+async def get_office_locations():
     """
-    Updates the office geofence coordinates and allowed distance threshold in MongoDB Atlas.
+    Direct endpoint to fetch all 4 configured office locations (Location 1, 2, 3, 4).
+    """
+    try:
+        if settings_collection is None:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        settings_data = await get_settings()
+        return {
+            "success": True,
+            "locations": settings_data.get("officeLocations", []),
+            "officeLocations": settings_data.get("officeLocations", []),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to get office locations")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/settings/locations")
+async def update_office_locations(payload: OfficeLocationsUpdateRequest):
+    """
+    Updates all office locations (Location 1, 2, 3, 4) in MongoDB Atlas.
     """
     try:
         if settings_collection is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
-        update_dict = {
-            "name": payload.name,
-            "address": payload.address,
-            "lat": payload.lat,
-            "lng": payload.lng,
-            "allowedRadiusMeters": payload.allowedRadiusMeters,
+        clean_locs = []
+        for i, loc in enumerate(payload.locations):
+            loc_dict = {
+                "id": loc.id or f"loc-{i + 1}",
+                "name": loc.name or f"Location {i + 1}",
+                "address": loc.address or "Office Campus Premises",
+                "lat": float(loc.lat),
+                "lng": float(loc.lng),
+                "allowedRadiusMeters": int(loc.allowedRadiusMeters or 1000),
+                "isActive": bool(loc.isActive if loc.isActive is not None else True),
+            }
+            if loc.geofencePolygon:
+                clean_locs.append({
+                    **loc_dict,
+                    "geofencePolygon": [
+                        {"lat": float(p["lat"]), "lng": float(p["lng"])}
+                        for p in loc.geofencePolygon
+                        if isinstance(p, dict) and "lat" in p and "lng" in p
+                    ]
+                })
+            else:
+                loc_dict["geofencePolygon"] = []
+                clean_locs.append(loc_dict)
+
+        primary_loc = clean_locs[0] if clean_locs else {
+            "name": "Head Office Block",
+            "address": "Office Campus Premises, Tamil Nadu",
+            "lat": 11.270377,
+            "lng": 77.603522,
+            "allowedRadiusMeters": 1000,
+            "geofencePolygon": [],
         }
+
+        set_fields: Dict[str, Any] = {
+            "officeLocations": clean_locs,
+            "officeLocation": primary_loc,
+        }
+        if primary_loc.get("geofencePolygon"):
+            set_fields["geofencePolygon"] = primary_loc["geofencePolygon"]
 
         settings_collection.update_one(
             {"key": "global_settings"},
-            {"$set": {"officeLocation": update_dict}},
+            {"$set": set_fields},
             upsert=True,
         )
 
-        response: Dict[str, Any] = {"success": True, "officeLocation": update_dict}
-        if payload.geofencePolygon:
-            clean_poly = [
-                {"lat": float(p["lat"]), "lng": float(p["lng"])}
-                for p in payload.geofencePolygon
-                if isinstance(p, dict) and "lat" in p and "lng" in p
-            ]
-            if len(clean_poly) >= 3:
-                settings_collection.update_one(
-                    {"key": "global_settings"},
-                    {"$set": {"geofencePolygon": clean_poly}},
-                    upsert=True,
-                )
-                response["geofencePolygon"] = clean_poly
+        return {
+            "success": True,
+            "locations": clean_locs,
+            "officeLocations": clean_locs,
+            "officeLocation": primary_loc,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to update office locations")
+        raise HTTPException(status_code=500, detail=str(e))
 
-        return response
+
+@router.get("/settings/smart-hours")
+async def get_smart_hours_settings():
+    """
+    Direct endpoint to fetch current smart hours policy and configured in-time/out-time.
+    """
+    try:
+        from backend.services.smart_hours import get_smart_config, DEFAULT_SMART_CONFIG
+        if settings_collection is None:
+            return {"success": True, "smartHoursConfig": DEFAULT_SMART_CONFIG, "inTime": "11:25 AM", "outTime": "07:25 PM"}
+        doc = settings_collection.find_one({"key": "global_settings"})
+        smart_cfg = get_smart_config(doc)
+        return {
+            "success": True,
+            "smartHoursConfig": smart_cfg,
+            "inTime": smart_cfg.get("inTime", "11:25 AM"),
+            "outTime": smart_cfg.get("outTime", "07:25 PM"),
+        }
+    except Exception as e:
+        logger.exception("Failed to get smart hours settings")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/settings/office")
+async def update_office_settings(payload: OfficeSettingsUpdateRequest):
+    """
+    Updates office geofence coordinates, allowed distance threshold, and multi-locations in MongoDB Atlas.
+    """
+    try:
+        if settings_collection is None:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+
+        existing = settings_collection.find_one({"key": "global_settings"}) or {}
+        existing_locs = existing.get("officeLocations") or []
+        base_primary = existing_locs[0] if existing_locs else (existing.get("officeLocation") or {})
+
+        clean_poly = [
+            {"lat": float(p["lat"]), "lng": float(p["lng"])}
+            for p in (payload.geofencePolygon or [])
+            if isinstance(p, dict) and "lat" in p and "lng" in p
+        ]
+        if len(clean_poly) < 3:
+            clean_poly = base_primary.get("geofencePolygon") or existing.get("geofencePolygon") or []
+
+        update_dict = {
+            "id": base_primary.get("id", "loc-1"),
+            "name": payload.name or base_primary.get("name", "Head Office Block"),
+            "address": payload.address or base_primary.get("address", "Office Campus Premises, Tamil Nadu"),
+            "lat": float(payload.lat if payload.lat is not None else base_primary.get("lat", 11.27037707675975)),
+            "lng": float(payload.lng if payload.lng is not None else base_primary.get("lng", 77.60352284059195)),
+            "allowedRadiusMeters": int(
+                payload.allowedRadiusMeters
+                if payload.allowedRadiusMeters is not None
+                else base_primary.get("allowedRadiusMeters", 1000)
+            ),
+            "geofencePolygon": clean_poly,
+            "isActive": bool(base_primary.get("isActive", True)),
+        }
+
+        set_dict: Dict[str, Any] = {
+            "officeLocation": update_dict,
+            "geofencePolygon": clean_poly,
+        }
+
+        # Keep Location 1 in sync whenever the primary office is edited.
+        if existing_locs:
+            merged_locs = [dict(loc) for loc in existing_locs]
+            merged_locs[0] = {**merged_locs[0], **update_dict}
+            set_dict["officeLocations"] = merged_locs
+        else:
+            set_dict["officeLocations"] = [update_dict]
+
+        # If inTime or outTime provided in office update payload, persist them
+        if payload.inTime:
+            set_dict["inTime"] = payload.inTime.strip()
+            set_dict["smartHoursConfig.inTime"] = payload.inTime.strip()
+            set_dict["smartHoursConfig.standardStartTime"] = payload.inTime.strip()
+        if payload.outTime:
+            set_dict["outTime"] = payload.outTime.strip()
+            set_dict["smartHoursConfig.outTime"] = payload.outTime.strip()
+            set_dict["smartHoursConfig.standardEndTime"] = payload.outTime.strip()
+
+        # If a full locations list was passed, it becomes the source of truth.
+        in_locs = payload.locations or payload.officeLocations
+        if in_locs:
+            clean_locs = []
+            for i, loc in enumerate(in_locs):
+                clean_locs.append({
+                    "id": loc.id or f"loc-{i + 1}",
+                    "name": loc.name or f"Location {i + 1}",
+                    "address": loc.address or "Office Campus Premises",
+                    "lat": float(loc.lat),
+                    "lng": float(loc.lng),
+                    "allowedRadiusMeters": int(loc.allowedRadiusMeters or 1000),
+                    "isActive": bool(loc.isActive if loc.isActive is not None else True),
+                    "geofencePolygon": [
+                        {"lat": float(p["lat"]), "lng": float(p["lng"])}
+                        for p in (loc.geofencePolygon or [])
+                        if isinstance(p, dict) and "lat" in p and "lng" in p
+                    ],
+                })
+            set_dict["officeLocations"] = clean_locs
+            set_dict["officeLocation"] = clean_locs[0]
+            if clean_locs[0].get("geofencePolygon"):
+                set_dict["geofencePolygon"] = clean_locs[0]["geofencePolygon"]
+
+        settings_collection.update_one(
+            {"key": "global_settings"},
+            {"$set": set_dict},
+            upsert=True,
+        )
+
+        return {
+            "success": True,
+            "officeLocation": set_dict["officeLocation"],
+            "officeLocations": set_dict["officeLocations"],
+            "locations": set_dict["officeLocations"],
+            "geofencePolygon": set_dict.get("geofencePolygon", clean_poly),
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -661,55 +907,99 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
 @router.put("/settings/smart-hours")
 async def update_smart_hours_settings(payload: SmartHoursUpdateRequest):
     """
-    Updates smart hours policy parameters (validated; merges with existing).
+    Updates smart hours policy parameters including In-Time and Out-Time in MongoDB Atlas.
     """
     try:
         if settings_collection is None:
             raise HTTPException(status_code=503, detail="Database unavailable")
 
-        from backend.services.smart_hours import parse_time_to_minutes
+        from backend.services.smart_hours import parse_time_to_minutes, minutes_to_time_str
         existing = settings_collection.find_one({"key": "global_settings"}) or {}
         current = existing.get("smartHoursConfig", {}) if isinstance(existing, dict) else {}
 
-        def _pick(name: str, default: Any):
-            val = getattr(payload, name, None)
-            if val is None:
-                return current.get(name, default)
-            return val
+        # Resolve In-Time (from payload.inTime or payload.standardStartTime or current)
+        std_in = payload.inTime or payload.standardStartTime or current.get("inTime") or current.get("standardStartTime") or existing.get("inTime") or "11:25 AM"
+        if not isinstance(std_in, str) or parse_time_to_minutes(std_in) is None:
+            std_in = "11:25 AM"
+        std_in = std_in.strip()
 
-        exp = _pick("expectedHoursPerDay", 8)
-        grace = _pick("graceCheckInMinutes", 15)
-        std = _pick("standardStartTime", "09:00 AM")
-        flex = _pick("flexibleWindowMinutes", 180)
+        # Resolve Out-Time (from payload.outTime or payload.standardEndTime or current)
+        std_out = payload.outTime or payload.standardEndTime or current.get("outTime") or current.get("standardEndTime") or existing.get("outTime")
+        if not isinstance(std_out, str) or parse_time_to_minutes(std_out) is None:
+            std_out = None
+
+        # Resolve expectedHoursPerDay
+        exp = payload.expectedHoursPerDay
+        if exp is None:
+            # If both inTime and outTime are known, compute duration
+            if std_in and std_out:
+                in_m = parse_time_to_minutes(std_in)
+                out_m = parse_time_to_minutes(std_out)
+                if in_m is not None and out_m is not None:
+                    diff = out_m - in_m
+                    if diff < 0:
+                        diff += 24 * 60
+                    exp = round(diff / 60.0, 1)
+            if exp is None:
+                exp = current.get("expectedHoursPerDay", 8)
+
         try:
-            exp = max(1, min(24, int(exp)))
+            exp = max(1.0, min(24.0, float(exp)))
         except (TypeError, ValueError):
-            exp = 8
+            exp = 8.0
+
+        # If Out-Time was not provided, auto-calculate from inTime + exp hours
+        if not std_out:
+            in_m = parse_time_to_minutes(std_in) or (11 * 60 + 25)
+            out_m = in_m + int(round(exp * 60))
+            std_out = minutes_to_time_str(out_m)
+        std_out = std_out.strip()
+
+        grace = payload.graceCheckInMinutes
+        if grace is None:
+            grace = current.get("graceCheckInMinutes", 15)
         try:
             grace = max(0, min(180, int(grace)))
         except (TypeError, ValueError):
             grace = 15
+
+        flex = payload.flexibleWindowMinutes
+        if flex is None:
+            flex = current.get("flexibleWindowMinutes", 180)
         try:
             flex = max(0, min(720, int(flex)))
         except (TypeError, ValueError):
             flex = 180
-        if not isinstance(std, str) or parse_time_to_minutes(std) is None:
-            std = current.get("standardStartTime", "09:00 AM")
 
         update_dict = {
             "expectedHoursPerDay": exp,
             "graceCheckInMinutes": grace,
-            "standardStartTime": std,
+            "standardStartTime": std_in,
+            "standardEndTime": std_out,
+            "inTime": std_in,
+            "outTime": std_out,
             "flexibleWindowMinutes": flex,
         }
 
+        # Persist both within smartHoursConfig and at root of global_settings document
         settings_collection.update_one(
             {"key": "global_settings"},
-            {"$set": {"smartHoursConfig": update_dict}},
+            {
+                "$set": {
+                    "smartHoursConfig": update_dict,
+                    "inTime": std_in,
+                    "outTime": std_out,
+                }
+            },
             upsert=True,
         )
 
-        return {"success": True, "smartHoursConfig": update_dict}
+        return {
+            "success": True,
+            "smartHoursConfig": update_dict,
+            "inTime": std_in,
+            "outTime": std_out,
+        }
     except HTTPException:
         raise
     except Exception as e:

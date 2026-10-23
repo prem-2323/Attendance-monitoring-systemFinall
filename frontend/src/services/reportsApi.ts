@@ -1,22 +1,8 @@
 import { AttendanceRecord } from '../types';
 
-const API_BASE = '/api/reports';
-const DIRECT_API_FALLBACK = 'http://127.0.0.1:8000/api/reports';
+import { apiFetch } from './apiConfig';
 
-/**
- * Helper to fetch with fallback between relative path and direct port 8000
- */
-async function apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    if (res.status !== 404) {
-      return res;
-    }
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  } catch {
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  }
-}
+const API_BASE = '/api/reports';
 
 export interface ReportFilterParams {
   department?: string;

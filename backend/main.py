@@ -5,11 +5,9 @@ Attendance Monitoring System — Smart Approval Based Face Attendance.
 import logging
 import sys
 from pathlib import Path
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 
 # Ensure project root directory is in sys.path
 _ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -19,7 +17,14 @@ for _p in [str(_ROOT_DIR), str(_BACKEND_DIR)]:
         sys.path.insert(0, _p)
 
 from contextlib import asynccontextmanager
-from backend.config import API_TITLE, API_DESCRIPTION, API_VERSION
+from backend.config import (
+    API_TITLE,
+    API_DESCRIPTION,
+    API_VERSION,
+    CORS_ORIGINS,
+    CORS_ORIGIN_REGEX,
+    ENVIRONMENT,
+)
 from backend.routes import employee as employee_router
 from backend.routes import attendance as attendance_router
 from backend.routes import auth as auth_router
@@ -65,11 +70,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS — allow frontend served on same host ─────────────────────────────────
+# ── CORS — Vercel frontend + local development ────────────────────────────────
+# The frontend uses localStorage (no cookies), so credentials are disabled.
+# Production Vercel origins are accepted via CORS_ORIGINS / CORS_ORIGIN_REGEX.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Restrict in production
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -90,32 +98,17 @@ app.include_router(attendance_router.router)
 app.include_router(app_attendance_router)
 
 
-# ── Serve frontend static files ───────────────────────────────────────────────
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-css_dir = os.path.join(FRONTEND_DIR, "css")
-js_dir = os.path.join(FRONTEND_DIR, "js")
-dist_dir = os.path.join(FRONTEND_DIR, "dist")
-
-if os.path.isdir(css_dir):
-    app.mount("/static", StaticFiles(directory=css_dir), name="css")
-if os.path.isdir(js_dir):
-    app.mount("/js", StaticFiles(directory=js_dir), name="js")
-if os.path.isdir(dist_dir):
-    app.mount("/dist", StaticFiles(directory=dist_dir), name="dist")
-
-index_file = os.path.join(FRONTEND_DIR, "index.html")
-if os.path.isfile(index_file):
-    @app.get("/", include_in_schema=False)
-    async def serve_index():
-        return FileResponse(index_file)
-
-    @app.get("/{page}.html", include_in_schema=False)
-    async def serve_page(page: str):
-        path = os.path.join(FRONTEND_DIR, f"{page}.html")
-        if os.path.isfile(path):
-            return FileResponse(path)
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Page not found")
+# ── Root ──────────────────────────────────────────────────────────────────────
+# The React frontend is deployed separately on Vercel, so the backend root is
+# just a small service-discovery response (Render health checks use /health).
+@app.get("/", include_in_schema=False)
+async def root():
+    return {
+        "message": f"{API_TITLE} API Running",
+        "version": API_VERSION,
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 # ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])
@@ -128,12 +121,18 @@ async def health_check():
             db_connected = True
         except Exception:
             pass
-    return {
-        "status": "running",
+
+    payload = {
+        "status": "running" if db_connected else "degraded",
         "api": API_TITLE,
         "version": API_VERSION,
         "database_connected": db_connected,
     }
+    # Render uses this endpoint as its health check. In production, report a
+    # non-200 status if Atlas is unreachable so the instance is restarted.
+    if not db_connected and ENVIRONMENT in ("production", "prod"):
+        return JSONResponse(status_code=503, content=payload)
+    return payload
 
 
 @app.get("/api", tags=["System"])

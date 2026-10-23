@@ -31,12 +31,29 @@ scheduler = BackgroundScheduler(timezone=TZ)
 
 
 def get_current_cutoff() -> time:
-    """Retrieve cutoff time dynamically from environment."""
-    cutoff_str = os.getenv("ATTENDANCE_CUTOFF", "09:30")
+    """Retrieve cutoff time dynamically from MongoDB Atlas settings or environment."""
+    try:
+        from backend.database import settings_collection
+        from backend.services.smart_hours import parse_time_to_minutes
+        if settings_collection is not None:
+            doc = settings_collection.find_one({"key": "global_settings"})
+            if doc:
+                smart = doc.get("smartHoursConfig") or {}
+                start_str = smart.get("inTime") or smart.get("standardStartTime") or doc.get("inTime")
+                grace_mins = int(smart.get("graceCheckInMinutes", 15))
+                if start_str:
+                    sm = parse_time_to_minutes(start_str)
+                    if sm is not None:
+                        cutoff_total = (sm + grace_mins) % (24 * 60)
+                        return time(cutoff_total // 60, cutoff_total % 60)
+    except Exception as e:
+        logger.debug(f"[AbsenceChecker] Note fetching DB cutoff: {e}")
+
+    cutoff_str = os.getenv("ATTENDANCE_CUTOFF", "11:40")
     try:
         return time.fromisoformat(cutoff_str)
     except Exception:
-        return time(9, 30)
+        return time(11, 40)
 
 
 def mark_absent_employees(force: bool = False):

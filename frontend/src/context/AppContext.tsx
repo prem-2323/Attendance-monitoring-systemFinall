@@ -9,7 +9,7 @@ import {
   SmartHoursConfig,
   AttendanceStatus,
 } from '../types';
-import { DEFAULT_OFFICE } from '../data/mockData';
+import { DEFAULT_OFFICE, DEFAULT_OFFICE_LOCATIONS } from '../data/mockData';
 
 import { authApi } from '../services/authApi';
 import { adminApi } from '../services/adminApi';
@@ -35,6 +35,7 @@ interface AppContextType {
   leaveRequests: LeaveRequest[];
   approvalAudits: ApprovalAudit[];
   officeLocation: OfficeLocation;
+  officeLocations: OfficeLocation[];
   smartHoursConfig: SmartHoursConfig;
   notifications: AppNotification[];
   login: (emailOrEmpId: string, role?: UserRole, explicitUser?: User) => boolean;
@@ -82,6 +83,8 @@ interface AppContextType {
     remarks?: string
   ) => Promise<{ success: boolean; message: string; leaveRequest?: LeaveRequest }>;
   updateOfficeLocation: (newLocation: Partial<OfficeLocation>) => Promise<void>;
+  updateOfficeLocations: (locations: OfficeLocation[]) => Promise<OfficeLocation[]>;
+  updateSmartHoursConfig: (config: Partial<SmartHoursConfig>) => Promise<SmartHoursConfig>;
   updateUserProfile: (payload: {
     employeeId: string;
     phone?: string;
@@ -123,6 +126,7 @@ const STORAGE_KEYS = {
   LEAVES: 'smart_attend_leaves_v2',
   AUDIT: 'smart_attend_audit_v2',
   OFFICE: 'smart_attend_office_v2',
+  LOCATIONS: 'smart_attend_locations_v2',
 };
 
 // All records in MongoDB Atlas and state are live active records
@@ -181,11 +185,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 5. Live Office & Smart Hours Settings
     adminApi.getSettings()
       .then((settings) => {
-        if (settings?.officeLocation) {
+        if (settings?.officeLocations && Array.isArray(settings.officeLocations) && settings.officeLocations.length > 0) {
+          setOfficeLocations(settings.officeLocations);
+          setOfficeLocation(settings.officeLocation || settings.officeLocations[0]);
+        } else if (settings?.officeLocation) {
           setOfficeLocation(settings.officeLocation);
         }
         if (settings?.smartHoursConfig) {
-          setSmartHoursConfig(settings.smartHoursConfig);
+          const inT = settings.smartHoursConfig.inTime || settings.inTime || settings.smartHoursConfig.standardStartTime || '11:25 AM';
+          const outT = settings.smartHoursConfig.outTime || settings.outTime || settings.smartHoursConfig.standardEndTime || '07:25 PM';
+          setSmartHoursConfig({
+            ...settings.smartHoursConfig,
+            inTime: inT,
+            outTime: outT,
+            standardStartTime: inT,
+            standardEndTime: outT,
+          });
         }
       })
       .catch((err) => console.warn('[AppContext] Could not fetch live settings:', err));
@@ -247,8 +262,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshSettings = async () => {
     try {
       const settings = await adminApi.getSettings();
-      if (settings?.officeLocation) setOfficeLocation(settings.officeLocation);
-      if (settings?.smartHoursConfig) setSmartHoursConfig(settings.smartHoursConfig);
+      if (settings?.officeLocations && Array.isArray(settings.officeLocations) && settings.officeLocations.length > 0) {
+        setOfficeLocations(settings.officeLocations);
+        setOfficeLocation(settings.officeLocation || settings.officeLocations[0]);
+      } else if (settings?.officeLocation) {
+        setOfficeLocation(settings.officeLocation);
+      }
+      if (settings?.smartHoursConfig) {
+        const inT = settings.smartHoursConfig.inTime || settings.inTime || settings.smartHoursConfig.standardStartTime || '11:25 AM';
+        const outT = settings.smartHoursConfig.outTime || settings.outTime || settings.smartHoursConfig.standardEndTime || '07:25 PM';
+        setSmartHoursConfig({
+          ...settings.smartHoursConfig,
+          inTime: inT,
+          outTime: outT,
+          standardStartTime: inT,
+          standardEndTime: outT,
+        });
+      }
     } catch (err) {
       console.warn('[AppContext] Failed to refresh settings:', err);
     }
@@ -318,10 +348,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : DEFAULT_OFFICE;
   });
 
+  const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.LOCATIONS);
+    if (!saved) return DEFAULT_OFFICE_LOCATIONS;
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_OFFICE_LOCATIONS;
+    } catch {
+      return DEFAULT_OFFICE_LOCATIONS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCATIONS, JSON.stringify(officeLocations));
+    } catch {}
+  }, [officeLocations]);
+
   const [smartHoursConfig, setSmartHoursConfig] = useState<SmartHoursConfig>({
     expectedHoursPerDay: 8,
     graceCheckInMinutes: 15,
-    standardStartTime: '09:00 AM',
+    standardStartTime: '11:25 AM',
+    standardEndTime: '07:25 PM',
+    inTime: '11:25 AM',
+    outTime: '07:25 PM',
     flexibleWindowMinutes: 180,
   });
 
@@ -823,10 +873,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateOfficeLocation = async (newLocation: Partial<OfficeLocation>): Promise<void> => {
     try {
       const updated = await adminApi.updateOfficeSettings(newLocation);
-      setOfficeLocation(updated);
+      // Merge so optional fields (geofencePolygon/isActive/id) survive a
+      // partial settings response instead of being wiped.
+      setOfficeLocation((prev) => ({ ...prev, ...updated }));
+      setOfficeLocations((prev) => {
+        if (!prev || prev.length === 0) return [updated];
+        const next = [...prev];
+        next[0] = { ...next[0], ...updated };
+        return next;
+      });
     } catch (err) {
       console.warn('[AppContext] Failed to persist office settings to Atlas:', err);
       setOfficeLocation((prev) => ({ ...prev, ...newLocation }));
+      setOfficeLocations((prev) => {
+        if (!prev || prev.length === 0) return [{ ...DEFAULT_OFFICE, ...newLocation }];
+        const next = [...prev];
+        next[0] = { ...next[0], ...newLocation };
+        return next;
+      });
+    }
+  };
+
+  const updateOfficeLocations = async (locations: OfficeLocation[]): Promise<OfficeLocation[]> => {
+    try {
+      const updated = await adminApi.updateOfficeLocations(locations);
+      setOfficeLocations(updated);
+      if (updated && updated.length > 0) {
+        setOfficeLocation(updated[0]);
+      }
+      return updated;
+    } catch (err) {
+      console.warn('[AppContext] Failed to persist office locations to Atlas:', err);
+      setOfficeLocations(locations);
+      if (locations && locations.length > 0) {
+        setOfficeLocation(locations[0]);
+      }
+      return locations;
+    }
+  };
+
+  const updateSmartHoursConfig = async (newConfig: Partial<SmartHoursConfig>): Promise<SmartHoursConfig> => {
+    try {
+      const updated = await adminApi.updateSmartHoursSettings(newConfig);
+      const inT = updated.inTime || newConfig.inTime || updated.standardStartTime || '11:25 AM';
+      const outT = updated.outTime || newConfig.outTime || updated.standardEndTime || '07:25 PM';
+      const fullConfig: SmartHoursConfig = {
+        ...updated,
+        inTime: inT,
+        outTime: outT,
+        standardStartTime: inT,
+        standardEndTime: outT,
+      };
+      setSmartHoursConfig(fullConfig);
+      return fullConfig;
+    } catch (err) {
+      console.warn('[AppContext] Failed to persist smart hours settings to Atlas:', err);
+      const fallback = { ...smartHoursConfig, ...newConfig } as SmartHoursConfig;
+      setSmartHoursConfig(fallback);
+      return fallback;
     }
   };
 
@@ -904,6 +1008,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(STORAGE_KEYS.LEAVES);
     localStorage.removeItem(STORAGE_KEYS.AUDIT);
     localStorage.removeItem(STORAGE_KEYS.OFFICE);
+    localStorage.removeItem(STORAGE_KEYS.LOCATIONS);
     await Promise.all([
       refreshUsers(),
       refreshAttendance(),
@@ -928,6 +1033,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         leaveRequests,
         approvalAudits,
         officeLocation,
+        officeLocations,
         smartHoursConfig,
         notifications,
         login,
@@ -949,6 +1055,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         applyLeave,
         reviewLeaveRequest,
         updateOfficeLocation,
+        updateOfficeLocations,
+        updateSmartHoursConfig,
         updateUserProfile,
         markNotificationRead,
         clearNotifications,

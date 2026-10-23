@@ -10,7 +10,10 @@ from typing import Dict, Any, Optional, Tuple
 DEFAULT_SMART_CONFIG: Dict[str, Any] = {
     "expectedHoursPerDay": 8,
     "graceCheckInMinutes": 15,
-    "standardStartTime": "09:00 AM",
+    "standardStartTime": "11:25 AM",
+    "standardEndTime": "07:25 PM",
+    "inTime": "11:25 AM",
+    "outTime": "07:25 PM",
     "flexibleWindowMinutes": 180,
 }
 
@@ -31,12 +34,24 @@ def get_smart_config(settings_doc: Optional[Dict[str, Any]] = None) -> Dict[str,
             for k in cfg:
                 if raw.get(k) is not None:
                     cfg[k] = raw[k]
+
+    # Synchronize inTime and standardStartTime
+    std_in = None
+    if settings_doc:
+        raw = settings_doc.get("smartHoursConfig") or {}
+        std_in = raw.get("inTime") or raw.get("standardStartTime") or settings_doc.get("inTime")
+    if not std_in or parse_time_to_minutes(str(std_in)) is None:
+        std_in = cfg.get("standardStartTime", "11:25 AM")
+    std_in = str(std_in).strip()
+    cfg["standardStartTime"] = std_in
+    cfg["inTime"] = std_in
+
     # Validate
     try:
-        exp = int(cfg.get("expectedHoursPerDay", 8))
+        exp = float(cfg.get("expectedHoursPerDay", 8))
     except (TypeError, ValueError):
-        exp = 8
-    cfg["expectedHoursPerDay"] = max(1, min(24, exp))
+        exp = 8.0
+    cfg["expectedHoursPerDay"] = max(1.0, min(24.0, exp))
     try:
         grace = int(cfg.get("graceCheckInMinutes", 15))
     except (TypeError, ValueError):
@@ -47,11 +62,20 @@ def get_smart_config(settings_doc: Optional[Dict[str, Any]] = None) -> Dict[str,
     except (TypeError, ValueError):
         flex = 180
     cfg["flexibleWindowMinutes"] = max(0, min(720, flex))
-    std = str(cfg.get("standardStartTime", "09:00 AM"))
-    if parse_time_to_minutes(std) is None:
-        cfg["standardStartTime"] = "09:00 AM"
-    else:
-        cfg["standardStartTime"] = std
+
+    # Synchronize outTime and standardEndTime
+    std_out = None
+    if settings_doc:
+        raw = settings_doc.get("smartHoursConfig") or {}
+        std_out = raw.get("outTime") or raw.get("standardEndTime") or settings_doc.get("outTime")
+    if not std_out or parse_time_to_minutes(str(std_out)) is None:
+        in_m = parse_time_to_minutes(std_in) or (11 * 60 + 25)
+        calc_out_m = in_m + int(round(cfg["expectedHoursPerDay"] * 60))
+        std_out = minutes_to_time_str(calc_out_m)
+    std_out = str(std_out).strip()
+    cfg["standardEndTime"] = std_out
+    cfg["outTime"] = std_out
+
     return cfg
 
 
@@ -101,7 +125,8 @@ def minutes_to_duration_str(total_minutes: int) -> str:
 
 def classify_arrival(check_in_str: Optional[str], cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Punctuality of arrival only (never the final daily status)."""
-    std_min = parse_time_to_minutes(str(cfg.get("standardStartTime", "09:00 AM"))) or (9 * 60)
+    std_str = str(cfg.get("inTime") or cfg.get("standardStartTime") or "11:25 AM")
+    std_min = parse_time_to_minutes(std_str) or (11 * 60 + 25)
     grace = int(cfg.get("graceCheckInMinutes", 15))
     flex = int(cfg.get("flexibleWindowMinutes", 180))
     ci_min = parse_time_to_minutes(check_in_str)
@@ -123,10 +148,11 @@ def classify_arrival(check_in_str: Optional[str], cfg: Dict[str, Any]) -> Dict[s
 def compute_shift(check_in_str: Optional[str], check_out_str: Optional[str],
                   cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Actual shift math from persisted check-in/out (handles overnight)."""
-    target_min = int(cfg.get("expectedHoursPerDay", 8)) * 60
+    target_min = int(round(float(cfg.get("expectedHoursPerDay", 8)) * 60))
     ci_min = parse_time_to_minutes(check_in_str)
     co_min = parse_time_to_minutes(check_out_str)
-    expected_checkout = minutes_to_time_str(ci_min + target_min) if ci_min is not None else "--"
+    default_out = cfg.get("outTime") or cfg.get("standardEndTime") or "--"
+    expected_checkout = minutes_to_time_str(ci_min + target_min) if ci_min is not None else default_out
     if ci_min is None or co_min is None:
         return {
             "targetMinutes": target_min,

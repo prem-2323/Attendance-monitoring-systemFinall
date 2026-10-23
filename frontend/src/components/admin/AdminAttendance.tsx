@@ -454,7 +454,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
               <option value="All">All Statuses</option>
               <option value="Present">Present (On Time)</option>
               <option value="Working">Working (Active)</option>
-              <option value="Late">Late (Post 09:15 AM)</option>
+              <option value="Late">Late (Post 11:40 AM)</option>
               <option value="On Leave">On Approved Leave</option>
               <option value="Absent">Absent</option>
             </select>

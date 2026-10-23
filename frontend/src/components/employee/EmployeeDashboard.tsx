@@ -31,6 +31,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
     todayAttendance,
     historicalAttendance,
     refreshAttendance,
+    smartHoursConfig,
   } = useApp();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -85,11 +86,15 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const lateCount = allMyRecords.filter((a) => a.status === 'Late').length;
   const attendanceRate = liveDashboard?.attendanceRate ?? (allMyRecords.length > 0 ? (Math.round(((presentCount + lateCount + inProgressCount) / totalDays) * 1000) / 10) : 0);
 
-  const checkInTime = todayRecord?.checkIn || (liveSmartHours?.checkInTime && liveSmartHours.checkInTime !== '09:00 AM' ? liveSmartHours.checkInTime : '--');
+  const checkInTime = todayRecord?.checkIn || '--';
   const checkOutTime = todayRecord?.checkOut || '--';
   const hoursWorked = todayRecord?.hoursWorked || (liveSmartHours?.workedTime && checkInTime !== '--' ? liveSmartHours.workedTime : '--');
   const remainingTime = liveSmartHours?.remainingTime || (checkInTime !== '--' ? 'Pending' : '--');
-  const expectedCheckout = liveSmartHours?.expectedCheckoutTime || '--';
+  const expectedCheckout = todayRecord?.checkOut
+    ? todayRecord.checkOut
+    : (checkInTime !== '--'
+        ? (liveSmartHours?.expectedCheckoutTime || smartHoursConfig?.outTime || '--')
+        : (smartHoursConfig?.outTime || '--'));
   const completionPercent = checkInTime !== '--' ? (liveSmartHours?.completionPercent || 0) : 0;
 
   return (
@@ -203,7 +208,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                 {checkOutTime}
               </div>
               <div className="mt-2 text-xs font-normal text-slate-400">
-                {checkOutTime === '--' ? (checkInTime !== '--' ? `Expected ~${expectedCheckout}` : 'Shift not ended') : 'Shift completed'}
+                {checkOutTime === '--'
+                  ? (checkInTime !== '--'
+                      ? `Expected ~${expectedCheckout}`
+                      : `Shift: ${smartHoursConfig?.inTime || '11:25 AM'} – ${smartHoursConfig?.outTime || '07:25 PM'}`)
+                  : 'Shift completed'}
               </div>
             </div>
 

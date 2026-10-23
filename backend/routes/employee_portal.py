@@ -59,6 +59,63 @@ def _calc_hours_difference(time_start_str: str, time_end_str: str) -> str:
         return "8h 00m"
 
 
+def verify_geofence_internal(latitude: float, longitude: float):
+    """
+    Validates GPS coordinates against all active office locations (Location 1, 2, 3, 4).
+    Returns (is_valid: bool, distance: int, location_name: str, allowed_radius: int).
+    """
+    settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
+    office_locations = []
+    if settings_doc and settings_doc.get("officeLocations"):
+        office_locations = [loc for loc in settings_doc["officeLocations"] if loc.get("isActive", True)]
+    if not office_locations and settings_doc and "officeLocation" in settings_doc:
+        office_locations = [settings_doc["officeLocation"]]
+
+    from backend.services.geofence import point_in_polygon, haversine_meters
+
+    valid_matches = []
+    min_distance = float("inf")
+    nearest_name = "Office Campus"
+    nearest_radius = 1000
+
+    for loc in office_locations:
+        loc_name = loc.get("name", "Office Location")
+        loc_radius = int(loc.get("allowedRadiusMeters", 1000))
+        loc_lat = float(loc.get("lat", 11.270377))
+        loc_lng = float(loc.get("lng", 77.603522))
+
+        loc_box = None
+        if loc.get("geofencePolygon"):
+            try:
+                loc_box = [(float(p["lat"]), float(p["lng"])) for p in loc["geofencePolygon"] if "lat" in p and "lng" in p]
+            except Exception:
+                loc_box = None
+        if not loc_box and loc.get("id") == "loc-1" and settings_doc and settings_doc.get("geofencePolygon"):
+            try:
+                loc_box = [(float(p["lat"]), float(p["lng"])) for p in settings_doc["geofencePolygon"] if "lat" in p and "lng" in p]
+            except Exception:
+                loc_box = None
+
+        inside_box = point_in_polygon(latitude, longitude, loc_box) if loc_box else False
+        dist = round(haversine_meters(latitude, longitude, loc_lat, loc_lng))
+
+        if dist < min_distance:
+            min_distance = dist
+            nearest_name = loc_name
+            nearest_radius = loc_radius
+
+        if inside_box or (dist <= loc_radius):
+            valid_matches.append((dist, loc_name, loc_radius, inside_box))
+
+    if valid_matches:
+        # Prioritize polygon box match if present, then minimum distance
+        valid_matches.sort(key=lambda x: (not x[3], x[0]))
+        best_dist, best_name, best_radius, _ = valid_matches[0]
+        return True, best_dist, best_name, best_radius
+
+    return False, min_distance, nearest_name, nearest_radius
+
+
 # ── 1. Mark Attendance (Face + GPS Check-in / Check-out) ──────────────────────
 
 @router.post("/attendance/mark")
@@ -78,54 +135,26 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         if not emp:
             raise HTTPException(status_code=404, detail=f"Employee '{payload.employeeId}' not found.")
 
-        # 2. Office geofence BOX check — attendance ONLY inside the polygon.
-        # The client sends its live GPS fix (latitude/longitude); the server
-        # re-verifies with a point-in-polygon test so spoofed flags can't pass.
         settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
-        allowed_radius = 1000
-        office_name = "Head Office Block"
-        polygon = None
-        if settings_doc and "officeLocation" in settings_doc:
-            allowed_radius = settings_doc["officeLocation"].get("allowedRadiusMeters", 1000)
-            office_name = settings_doc["officeLocation"].get("name", office_name)
-        if settings_doc and settings_doc.get("geofencePolygon"):
-            try:
-                polygon = [
-                    (float(p["lat"]), float(p["lng"]))
-                    for p in settings_doc["geofencePolygon"]
-                    if "lat" in p and "lng" in p
-                ] or None
-            except (TypeError, ValueError, KeyError):
-                polygon = None
 
-        from backend.services.geofence import (
-            get_configured_polygon,
-            point_in_polygon,
-            polygon_centroid,
-            haversine_meters,
-        )
-        office_box = polygon or get_configured_polygon()
-
+        # 2. Multi-location geofence check (Location 1, 2, 3, 4)
         if payload.latitude is not None and payload.longitude is not None:
-            c_lat, c_lng = polygon_centroid(office_box)
-            dist_to_center = round(haversine_meters(payload.latitude, payload.longitude, c_lat, c_lng))
-            inside_box = point_in_polygon(payload.latitude, payload.longitude, office_box)
-            within_allowed = inside_box or (dist_to_center <= allowed_radius)
-            if not within_allowed:
+            is_valid, dist, loc_name, allowed_radius = verify_geofence_internal(payload.latitude, payload.longitude)
+            if not is_valid:
                 raise HTTPException(
                     status_code=400,
                     detail=(
                         f"Outside office geofence: your GPS position ({payload.latitude:.6f}, {payload.longitude:.6f}) "
-                        f"is {dist_to_center}m away from {office_name}, exceeding the allowed {allowed_radius}m radius."
+                        f"is {dist}m from nearest location ({loc_name}), exceeding the allowed {allowed_radius}m radius."
                     ),
                 )
-            # Verified inside polygon box or within 1000m radius
-            payload.distanceMeters = dist_to_center
+            payload.distanceMeters = dist
             payload.withinRadius = True
-        elif not payload.withinRadius and payload.distanceMeters > allowed_radius:
+            payload.locationName = loc_name
+        elif not payload.withinRadius and payload.distanceMeters > 1000:
             raise HTTPException(
                 status_code=400,
-                detail=f"GPS check failed: Current distance {round(payload.distanceMeters)}m exceeds allowed radius of {allowed_radius}m.",
+                detail=f"GPS check failed: Current distance {round(payload.distanceMeters)}m exceeds allowed radius of 1000m.",
             )
 
         if not payload.livenessVerified:
@@ -203,7 +232,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
 
         if payload.isCheckOut:
             # Check-out operation: finalize from ACTUAL persisted hours.
-            check_in_time = (existing.get("checkIn") if existing else None) or "09:00 AM"
+            check_in_time = (existing.get("checkIn") if existing else None) or smart_cfg.get("inTime") or smart_cfg.get("standardStartTime") or "11:25 AM"
             shift = compute_shift(check_in_time, formatted_time, smart_cfg)
             hours_worked = shift["workedStr"]
             final_status, _ctx = finalize_status(check_in_time, formatted_time, smart_cfg)
@@ -619,6 +648,7 @@ async def get_employee_dashboard(employee_id: str):
             "name": "Head Office Block",
             "allowedRadiusMeters": 1000,
         }) if settings_doc else {"name": "Head Office Block", "allowedRadiusMeters": 1000}
+        office_locations = settings_doc.get("officeLocations") if settings_doc else [office_location]
 
         return {
             "employeeId": employee_id,
@@ -627,6 +657,7 @@ async def get_employee_dashboard(employee_id: str):
             "totalTrackedDays": len(all_recs),
             "recentLeaves": [_clean_doc(l) for l in recent_leaves],
             "officeLocation": office_location,
+            "officeLocations": office_locations or [office_location],
         }
     except Exception as e:
         logger.exception("Failed to fetch employee dashboard")
@@ -661,7 +692,9 @@ async def get_smart_hours_calculation(
             "date": today_str,
         }) if attendance_collection is not None else None
 
-        persisted_in = (today_rec.get("checkIn") if today_rec else None) or "09:00 AM"
+        std_in_default = str(cfg.get("inTime") or cfg.get("standardStartTime") or "11:25 AM")
+        std_out_default = str(cfg.get("outTime") or cfg.get("standardEndTime") or "07:25 PM")
+        persisted_in = (today_rec.get("checkIn") if today_rec else None) or std_in_default
         persisted_out = today_rec.get("checkOut") if today_rec else None
         # Actual progress: persisted check-in/out vs wall-clock now.
         now_str = datetime.now().strftime("%I:%M %p")
@@ -685,6 +718,8 @@ async def get_smart_hours_calculation(
             "employeeId": employee_id,
             "checkInTime": persisted_in,
             "expectedCheckoutTime": actual["expectedCheckout"],
+            "inTime": std_in_default,
+            "outTime": std_out_default,
             "workedTime": today_rec.get("hoursWorked") if today_rec and today_rec.get("checkOut") else actual["workedStr"],
             "remainingTime": actual["remainingStr"],
             "completionPercent": actual["completionPct"],
@@ -692,7 +727,7 @@ async def get_smart_hours_calculation(
             "smartPolicy": (
                 f"Flexible {int(cfg.get('flexibleWindowMinutes', 180)) // 60}-hour window "
                 f"with {target_h} full working hours enforcement "
-                f"(standard {cfg.get('standardStartTime')} + {cfg.get('graceCheckInMinutes')}m grace)"
+                f"(Shift: {std_in_default} to {std_out_default}, +{cfg.get('graceCheckInMinutes', 15)}m grace)"
             ),
             "dayStatus": day_status,
             "arrivalStatus": arrival["arrivalStatus"],

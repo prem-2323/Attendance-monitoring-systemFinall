@@ -224,7 +224,7 @@ The primary collections and their document schemas are:
    - `smartHoursConfig`:
        * `expectedHoursPerDay`: 8
        * `graceCheckInMinutes`: 15
-       * `standardStartTime`: "09:00 AM"
+       * `standardStartTime`: "11:25 AM"
        * `flexibleWindowMinutes`: 180 (allowing 7:30 AM to 10:30 AM flex start)
 
 8. `reset_tokens` Collection:
@@ -315,10 +315,9 @@ The application accommodates modern flexible work culture while enforcing
 compliance:
 
 1. Standard Parameters:
-   - Standard Office Start Time: 09:00 AM
-   - Grace Check-In Window: 15 minutes (arrival up to 09:15 AM is marked "Present")
-   - Arrival between 09:16 AM and 10:30 AM: Marked "Late"
-   - Arrival after 10:30 AM: Marked "Half Day"
+   - Standard Office Start Time: 11:25 AM
+   - Grace Check-In Window: 15 minutes (arrival up to 11:40 AM is marked "Present")
+   - Arrival after 11:40 AM: Marked "Late"
    - Required Daily Working Hours: 8 Hours (480 minutes)
 
 2. Dynamic Shift Adjustment (Smart Hours):
@@ -340,8 +339,8 @@ Attendance Classification Matrix:
   +--------------------+---------------------+---------------------------------+
   | Match Confidence   | Arrival Time        | Status Outcome                  |
   +--------------------+---------------------+---------------------------------+
-  | >= 80% (High)      | On-time (<= 9:15 AM)| Auto-Approved ("Present")       |
-  | >= 80% (High)      | Late (> 9:15 AM)    | Auto-Approved ("Late")          |
+  | >= 80% (High)      | On-time (<= 11:40 AM)| Auto-Approved ("Present")      |
+  | >= 80% (High)      | Late (> 11:40 AM)    | Auto-Approved ("Late")         |
   | 65% - 79% (Medium) | Any time            | Pending Manager Review          |
   | < 65% (Low)        | Any time            | Rejected (Unrecognized)         |
   | Any confidence     | Outside Geofence    | Blocked (400 Geofence Violation)|

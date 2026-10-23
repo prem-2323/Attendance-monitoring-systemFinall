@@ -15,14 +15,14 @@ import { Skeleton } from '../common/Skeleton';
 import { employeeApi, SmartHoursResponse } from '../../services/employeeApi';
 
 export const EmployeeSmartHours: React.FC = () => {
-  const { currentUser, todayAttendance } = useApp();
+  const { currentUser, todayAttendance, smartHoursConfig } = useApp();
   const [isLoading, setIsLoading] = useState(true);
 
   const empId = currentUser?.employeeId || '';
 
   // Find employee's today record check-in
   const todayRec = todayAttendance.find((a) => a.employeeId === empId);
-  const initialCheckIn = todayRec?.checkIn || '09:00 AM';
+  const initialCheckIn = todayRec?.checkIn || smartHoursConfig?.inTime || '11:25 AM';
 
   // Interactive Simulator parameters
   const [simulatedCheckIn, setSimulatedCheckIn] = useState<string>(initialCheckIn);
@@ -31,7 +31,7 @@ export const EmployeeSmartHours: React.FC = () => {
   const [metrics, setMetrics] = useState<SmartHoursResponse>({
     employeeId: empId,
     checkInTime: todayRec?.checkIn || '--',
-    expectedCheckoutTime: '--',
+    expectedCheckoutTime: todayRec?.checkOut || smartHoursConfig?.outTime || '--',
     workedTime: todayRec?.hoursWorked || '--',
     remainingTime: todayRec?.checkIn ? 'In Progress' : '8h 00m',
     completionPercent: 0,

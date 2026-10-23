@@ -1,19 +1,8 @@
 import { AttendanceRecord, LeaveRequest, LeaveType } from '../types';
 
-const API_BASE = '/api/employee';
-const DIRECT_API_FALLBACK = 'http://127.0.0.1:8000/api/employee';
+import { apiFetch } from './apiConfig';
 
-async function apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    if (res.status !== 404) {
-      return res;
-    }
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  } catch {
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  }
-}
+const API_BASE = '/api/employee';
 
 export interface MarkAttendancePayload {
   employeeId: string;

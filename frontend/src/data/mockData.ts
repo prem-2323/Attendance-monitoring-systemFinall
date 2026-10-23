@@ -6,11 +6,13 @@ import { User, AttendanceRecord, LeaveRequest, ApprovalAudit, OfficeLocation } f
  * Live parameters are loaded dynamically from MongoDB Atlas settings.
  */
 export const DEFAULT_OFFICE: OfficeLocation = {
+  id: 'loc-1',
   name: 'Head Office Block',
   address: 'Office Campus Premises, Tamil Nadu',
   lat: 11.27037707675975,
   lng: 77.60352284059195,
   allowedRadiusMeters: Number((import.meta as any)?.env?.VITE_OFFICE_RADIUS_METERS || 1000),
+  isActive: true,
   geofencePolygon: [
     { lat: 11.270872464050166, lng: 77.60414913913843 },
     { lat: 11.269939620797608, lng: 77.60419457796888 },
@@ -18,6 +20,40 @@ export const DEFAULT_OFFICE: OfficeLocation = {
     { lat: 11.270798193201482, lng: 77.60284050082124 },
   ],
 };
+
+export const DEFAULT_OFFICE_LOCATIONS: OfficeLocation[] = [
+  DEFAULT_OFFICE,
+  {
+    id: 'loc-2',
+    name: 'Location 2 - Tech Park Campus',
+    address: 'Electronics & Software City Tower, Coimbatore',
+    lat: 11.276377,
+    lng: 77.609151,
+    allowedRadiusMeters: 1000,
+    isActive: true,
+    geofencePolygon: [],
+  },
+  {
+    id: 'loc-3',
+    name: 'Location 3 - Downtown Facility',
+    address: 'Metro Commercial Plaza, Coimbatore',
+    lat: 11.26489,
+    lng: 77.598211,
+    allowedRadiusMeters: 1000,
+    isActive: true,
+    geofencePolygon: [],
+  },
+  {
+    id: 'loc-4',
+    name: 'Location 4 - Innovation Hub',
+    address: 'Cyber City Research & Development Center, Bengaluru',
+    lat: 11.2812,
+    lng: 77.6158,
+    allowedRadiusMeters: 1000,
+    isActive: true,
+    geofencePolygon: [],
+  },
+];
 
 // All mock dummy records removed — live data is retrieved dynamically from MongoDB Atlas
 export const INITIAL_USERS: User[] = [];

@@ -24,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
     currentUser,
     logout,
     officeLocation,
+    smartHoursConfig,
     notifications,
     markNotificationRead,
     clearNotifications,
@@ -96,7 +97,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar, activeTab
           </span>
           <MapPin className="h-3.5 w-3.5 text-emerald-600" />
           <span className="font-bold text-emerald-950">{officeLocation.name}</span>
-          <span className="text-emerald-700 font-medium text-[11px]">(office box geofence active)</span>
+          <span className="text-emerald-800 font-semibold text-[11px]">
+            {officeLocation.allowedRadiusMeters ?? 1000} m
+          </span>
+          <span className="hidden xl:inline text-emerald-700/80 font-medium text-[11px]">
+            · Work start {smartHoursConfig?.inTime || '11:25 AM'}
+          </span>
         </div>
       </div>
 

@@ -22,6 +22,17 @@ _LATE_DELTA_MINUTES = LATE_THRESHOLD_MINUTES
 
 def is_late(attendance_time: dtime) -> bool:
     """Return True if the given time is past the late-arrival threshold."""
+    try:
+        from backend.services.smart_hours import get_smart_config_from_db, parse_time_to_minutes
+        cfg = get_smart_config_from_db()
+        in_str = cfg.get("inTime") or cfg.get("standardStartTime")
+        start_mins = parse_time_to_minutes(in_str)
+        if start_mins is not None:
+            grace = int(cfg.get("graceCheckInMinutes", 15))
+            arrival_mins = attendance_time.hour * 60 + attendance_time.minute
+            return (arrival_mins - start_mins) > grace
+    except Exception:
+        pass
     start_minutes = _WORK_START.hour * 60 + _WORK_START.minute
     arrival_minutes = attendance_time.hour * 60 + attendance_time.minute
     return (arrival_minutes - start_minutes) > _LATE_DELTA_MINUTES

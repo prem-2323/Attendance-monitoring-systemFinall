@@ -28,11 +28,38 @@ FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.55"))  # Lower
 FACE_CONFIDENCE_THRESHOLD = float(os.getenv("FACE_CONFIDENCE_THRESHOLD", "0.85"))
 
 # Attendance Rules
-WORK_START_HOUR = int(os.getenv("WORK_START_HOUR", "9"))    # 9:00 AM
-WORK_START_MINUTE = int(os.getenv("WORK_START_MINUTE", "0"))
-LATE_THRESHOLD_MINUTES = int(os.getenv("LATE_THRESHOLD_MINUTES", "30"))  # 30 min grace
+WORK_START_HOUR = int(os.getenv("WORK_START_HOUR", "11"))    # 11:25 AM
+WORK_START_MINUTE = int(os.getenv("WORK_START_MINUTE", "25"))
+LATE_THRESHOLD_MINUTES = int(os.getenv("LATE_THRESHOLD_MINUTES", "15"))  # 15 min grace
 
 # API Configuration
 API_TITLE = "Attendance Monitoring System"
 API_DESCRIPTION = "Smart Approval Based Face Attendance System"
 API_VERSION = "1.0.0"
+
+# ── Deployment / CORS ────────────────────────────────────────────────────────
+# ENVIRONMENT=production makes a failed MongoDB connection fatal instead of
+# silently falling back to an in-memory database.
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+
+# Comma-separated frontend origins. Vercel production + preview URLs are also
+# accepted through CORS_ORIGIN_REGEX by default.
+CORS_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+
+# Optional single frontend URL (convenience for Render/Vercel setup).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+if FRONTEND_URL and FRONTEND_URL not in CORS_ORIGINS:
+    CORS_ORIGINS.append(FRONTEND_URL)
+
+# Matches https://<project>.vercel.app and preview deployments.
+CORS_ORIGIN_REGEX = os.getenv(
+    "CORS_ORIGIN_REGEX", r"https://.*\.vercel\.app"
+).strip() or None

@@ -1,15 +1,34 @@
+# ── Web framework ────────────────────────────────────────────────────────────
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-pymongo==4.8.0
-python-dotenv==1.0.1
 python-multipart==0.0.9
-opencv-python==4.10.0.84
+
+# ── Database ─────────────────────────────────────────────────────────────────
+pymongo==4.8.0
+dnspython==2.9.0
+# Development-only fallback; production (ENVIRONMENT=production) fails fast.
+mongomock==4.3.0
+
+# ── Configuration / validation ───────────────────────────────────────────────
+python-dotenv==1.0.1
+pydantic==2.8.2
+
+# ── Background jobs / email ──────────────────────────────────────────────────
+apscheduler==3.10.4
+
+# ── Computer vision ──────────────────────────────────────────────────────────
+# Headless OpenCV is required on servers (no libGL/GUI dependencies).
+opencv-python-headless==4.10.0.84
 numpy==1.26.4
 Pillow==10.4.0
-pydantic==2.8.2
-pydantic-settings==2.4.0
-scipy==1.14.0
-face-recognition==1.3.0
-dlib==19.24.6
-sqlalchemy>=2.0.0
-apscheduler>=3.10.0
+
+# ── Face recognition ─────────────────────────────────────────────────────────
+# dlib-bin provides a pre-built Linux wheel, avoiding a long/failing dlib
+# source build on Render. face-recognition itself is installed by build.sh
+# with --no-deps (it would otherwise pull the source-only "dlib" package).
+# Local install:
+#   pip install -r requirements.txt
+#   pip install "face-recognition==1.3.0" --no-deps
+dlib-bin==19.24.6
+face-recognition-models==0.3.0
+click==8.1.7

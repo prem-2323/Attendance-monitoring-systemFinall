@@ -1,25 +1,8 @@
 import { User } from '../types';
 
-const API_BASE = '/api/auth';
-const DIRECT_API_FALLBACK = 'http://127.0.0.1:8000/api/auth';
+import { apiFetch } from './apiConfig';
 
-/**
- * Helper to fetch with fallback between relative path and direct port 8000
- */
-async function apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    // If not a 404 or 502/503 from missing proxy, return it
-    if (res.status !== 404) {
-      return res;
-    }
-    // Fallback to direct backend
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  } catch {
-    // If fetch failed completely (e.g. network/proxy error), try direct backend
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  }
-}
+const API_BASE = '/api/auth';
 
 export interface RegisterAdminData {
   name: string;

@@ -33,7 +33,7 @@ class ApplyLeaveRequest(BaseModel):
 
 class SmartHoursSimulationRequest(BaseModel):
     employeeId: str = Field(..., min_length=1)
-    simulatedCheckIn: Optional[str] = "09:00 AM"
+    simulatedCheckIn: Optional[str] = "11:25 AM"
     simulatedCurrentTime: Optional[str] = "05:00 PM"
 
 

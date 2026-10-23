@@ -31,3 +31,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Deployment tooling
+.vercel/
+frontend/.vercel/

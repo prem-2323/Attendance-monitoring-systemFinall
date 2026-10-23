@@ -7,20 +7,9 @@ import {
   AttendanceStatus,
 } from '../types';
 
-const API_BASE = '/api/admin';
-const DIRECT_API_FALLBACK = 'http://127.0.0.1:8000/api/admin';
+import { apiFetch } from './apiConfig';
 
-async function apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    if (res.status !== 404) {
-      return res;
-    }
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  } catch {
-    return await fetch(`${DIRECT_API_FALLBACK}${endpoint}`, options);
-  }
-}
+const API_BASE = '/api/admin';
 
 export interface DashboardStatsResponse {
   todayDate: string;
@@ -230,7 +219,11 @@ export const adminApi = {
    */
   async getSettings(): Promise<{
     officeLocation: OfficeLocation;
+    officeLocations?: OfficeLocation[];
+    locations?: OfficeLocation[];
     smartHoursConfig: SmartHoursConfig;
+    inTime?: string;
+    outTime?: string;
   }> {
     const res = await apiFetch('/settings');
     if (!res.ok) {
@@ -242,7 +235,7 @@ export const adminApi = {
   /**
    * Update office GPS location & radius
    */
-  async updateOfficeSettings(location: Partial<OfficeLocation>): Promise<OfficeLocation> {
+  async updateOfficeSettings(location: Partial<OfficeLocation> & { locations?: OfficeLocation[] }): Promise<OfficeLocation> {
     const res = await apiFetch('/settings/office', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -253,6 +246,22 @@ export const adminApi = {
       throw new Error(data.detail || data.message || 'Failed to update office settings');
     }
     return data.officeLocation;
+  },
+
+  /**
+   * Update all office locations (Location 1, 2, 3, 4)
+   */
+  async updateOfficeLocations(locations: OfficeLocation[]): Promise<OfficeLocation[]> {
+    const res = await apiFetch('/settings/locations', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locations }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Failed to update office locations');
+    }
+    return data.locations || data.officeLocations;
   },
 
   /**

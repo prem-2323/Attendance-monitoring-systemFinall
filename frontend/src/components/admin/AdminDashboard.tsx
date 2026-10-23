@@ -30,7 +30,17 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
-  const { currentUser, users, todayAttendance, approvalAudits, refreshUsers, refreshAttendance, refreshApprovalAudits } = useApp();
+  const {
+    currentUser,
+    users,
+    todayAttendance,
+    approvalAudits,
+    refreshUsers,
+    refreshAttendance,
+    refreshApprovalAudits,
+    officeLocation,
+    smartHoursConfig,
+  } = useApp();
   const [isLoading, setIsLoading] = useState(true);
   const [liveStats, setLiveStats] = useState<DashboardStatsResponse | null>(null);
 
@@ -257,7 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="flex justify-between text-xs font-medium text-slate-700 mb-1.5">
                 <span className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                  Late Arrivals (After 09:15 AM)
+                  Late Arrivals (After 11:40 AM)
                 </span>
                 <span className="font-semibold text-slate-900">
                   {lateCount} ({Math.round((lateCount / totalTracked) * 100)}%)
@@ -346,7 +356,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <div className="rounded-xl bg-amber-50/70 p-3.5 border border-amber-100">
               <div className="font-bold text-amber-950">GPS Geofencing Radar</div>
               <div className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                HQ Campus Radius: 150 meters. Strict spoofing prevention active.
+                {officeLocation.name}: {officeLocation.allowedRadiusMeters ?? 1000} m radius.
+                Work starts at {smartHoursConfig?.inTime || '11:25 AM'}. Strict spoofing prevention active.
               </div>
             </div>
 

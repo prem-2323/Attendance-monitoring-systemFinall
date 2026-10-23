@@ -10,7 +10,6 @@ import {
   VideoOff,
   RefreshCw,
   ScanFace,
-  Wand2,
   Upload,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -110,22 +109,6 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleAutofill = () => {
-    const num = users.reduce((max, u) => {
-      const match = u.employeeId?.match(/\d+/);
-      const n = match ? parseInt(match[0], 10) : 0;
-      return n > max ? n : max;
-    }, 0) + 1;
-    const autoId = `EMP${String(num).padStart(3, '0')}`;
-    setName('Maya Krishnan');
-    setEmployeeId(autoId);
-    setEmail(`employee.${autoId.toLowerCase()}@company.com`);
-    setPhone('+91 98400 12345');
-    setDepartment('Engineering');
-    if (availableManagers[0]?.name) setManagerName(availableManagers[0].name);
-    setPassword('password123');
-    setErrorMsg('');
-  };
 
   // Helper to wait for video dimensions to stabilize
   const waitForVideoReady = async (vid: HTMLVideoElement, timeoutMs = 1200): Promise<boolean> => {
@@ -380,15 +363,6 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold text-slate-500">New employee profile</span>
-            <button
-              type="button"
-              onClick={handleAutofill}
-              title="Autofill demo employee details (incl. face enrollment)"
-              className="flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:border-emerald-500 hover:text-emerald-900 transition-all cursor-pointer"
-            >
-              <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
-              Autofill demo data
-            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -400,7 +374,7 @@ export const RegisterEmployeeModal: React.FC<RegisterEmployeeModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Maya Krishnan"
+                placeholder="Enter employee full name"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>

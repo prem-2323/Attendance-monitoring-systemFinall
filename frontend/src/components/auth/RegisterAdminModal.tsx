@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, KeyRound, AlertCircle, ArrowRight, Lock, CheckCircle2, Wand2 } from 'lucide-react';
+import { X, ShieldCheck, KeyRound, AlertCircle, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { authApi } from '../../services/authApi';
 
@@ -33,17 +33,6 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleAutofill = () => {
-    const n = nextAdmNum;
-    setName('Ananya Iyer');
-    setEmployeeId(`ADM${String(Math.max(n, 1)).padStart(3, '0')}`);
-    setEmail(`admin.demo${n}@company.com`);
-    setPhone('+91 98401 22334');
-    setDepartment('System Administration');
-    setPassword('password123');
-    setSecurityPasskey('AMS-ROOT-2026');
-    setErrorMsg('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,16 +108,7 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-slate-500">New admin profile</span>
-            <button
-              type="button"
-              onClick={handleAutofill}
-              title="Autofill demo admin details"
-              className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900 transition-all cursor-pointer"
-            >
-              <Wand2 className="h-3.5 w-3.5 text-amber-500" />
-              Autofill demo data
-            </button>
+            <span className="text-[11px] font-semibold text-slate-500">New administrator profile</span>
           </div>
           <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900 flex items-start gap-2">
             <KeyRound className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
@@ -150,7 +130,7 @@ export const RegisterAdminModal: React.FC<RegisterAdminModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ananya Iyer"
+                placeholder="Enter administrator full name"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>

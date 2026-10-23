@@ -2,6 +2,15 @@
 
 > AI-powered face recognition attendance system with 68-point landmark alignment, duplicate detection, and smart approval workflow.
 
+## Deployment
+
+- **Frontend:** Vercel (React + Vite)
+- **Backend:** Render (FastAPI + Uvicorn)
+- **Database:** MongoDB Atlas
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete step-by-step guide,
+environment variables, CORS setup, and troubleshooting.
+
 ## Architecture
 
 ```
@@ -12,37 +21,27 @@ Attendance Verification → Face Match → Smart Approval → Result UI
 ## Project Structure
 
 ```
-attendance-monitoring-antigravity/
+attendance-monitoring-system/
 ├── backend/
 │   ├── main.py                    ← FastAPI app entry point
-│   ├── database.py                ← Local MongoDB connection
-│   ├── config.py                  ← Configuration / .env settings
-│   ├── models/
-│   │   ├── employee.py            ← Employee Pydantic models
-│   │   └── attendance.py          ← Attendance & Approval models
-│   ├── services/
-│   │   ├── face_detector.py       ← SSD MobileNet V1 face detection
-│   │   ├── face_landmark.py       ← 68-point landmark alignment
-│   │   ├── face_recognition.py    ← 128-d face embedding generation
-│   │   └── attendance_service.py  ← Smart approval logic
-│   └── routes/
-│       ├── employee.py            ← Registration endpoints
-│       └── attendance.py          ← Verification & approval endpoints
+│   ├── config.py                  ← Environment / CORS configuration
+│   ├── database.py                ← MongoDB Atlas connection + seeding
+│   ├── models/                    ← Pydantic request/response models
+│   ├── routes/                    ← Auth, admin, manager, employee, reports APIs
+│   ├── services/                  ← Face detection, embeddings, geofence, smart hours
+│   └── app/                       ← Scheduler, email service, legacy compatibility
 ├── frontend/
-│   ├── index.html                 ← Home / landing page
-│   ├── register.html              ← Employee registration
-│   ├── attendance.html            ← Mark attendance
-│   ├── result.html                ← Dashboard & approval
-│   ├── css/style.css              ← Global design system
-│   └── js/
-│       ├── register.js            ← Registration logic
-│       └── attendance.js          ← Attendance logic
-├── models/
-│   ├── ssd_mobilenet_v1/          ← SSD MobileNet V1 model files
-│   ├── shape_predictor_68_face_landmarks/ ← dlib landmark model
-│   └── face_recognition/          ← face_recognition library models
-├── .env                           ← MongoDB credentials (DO NOT COMMIT)
-├── requirements.txt
+│   ├── src/                       ← React + TypeScript application
+│   ├── package.json
+│   ├── vite.config.ts             ← Dev proxy: /api → 127.0.0.1:8000
+│   └── vercel.json                ← SPA rewrite for frontend-root deployments
+├── models/                        ← Face detection / landmark model files
+├── requirements.txt               ← Python dependencies
+├── build.sh                       ← Render build (pre-built dlib wheel)
+├── render.yaml                    ← Render Blueprint
+├── vercel.json                    ← Vercel build config (repo-root deployment)
+├── DEPLOYMENT.md                  ← Vercel + Render deployment guide
+├── .env.example                   ← Backend environment template
 └── README.md
 ```
 
@@ -50,67 +49,75 @@ attendance-monitoring-antigravity/
 
 ### 1. Create Virtual Environment
 ```bash
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Linux/macOS
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+# source .venv/bin/activate
 ```
 
-### 2. Install Dependencies
+### 2. Install Backend Dependencies
 ```bash
 pip install -r requirements.txt
+pip install "face-recognition==1.3.0" --no-deps
 ```
 
-> **Note on dlib/face-recognition:** These packages require C++ build tools.
-> On Windows, install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
-> Alternative: install pre-built wheels from https://github.com/jloh02/dlib
+> `dlib-bin` provides a pre-built wheel. On Windows/Linux, this avoids
+> compiling dlib from source. See `build.sh` for the Render equivalent.
 
-### 3. Start Local MongoDB
-Ensure the MongoDB service is running on `localhost:27017`. The application uses the database `attendance-monitoring-system`; MongoDB creates it and its collections when data is first written.
+### 3. Configure Environment
+Copy `.env.example` to `.env` and fill in your MongoDB Atlas and SMTP values:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/
 DATABASE_NAME=attendance-monitoring-system
 ```
 
-### 4. Download Model Files (Optional but Recommended)
+MongoDB Atlas creates the database and collections on first write. Default
+office/shift settings are seeded automatically.
 
-**SSD MobileNet V1** (better face detection):
-```
-models/ssd_mobilenet_v1/deploy.prototxt
-models/ssd_mobilenet_v1/res10_300x300_ssd_iter_140000.caffemodel
-```
-Download: https://github.com/opencv/opencv/tree/master/samples/dnn/face_detector
-
-**68-Point Landmarks** (face alignment):
-```
-models/shape_predictor_68_face_landmarks/shape_predictor_68_face_landmarks.dat
-```
-Download: http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
-
-Without these files, the system falls back to Haar Cascade + simple crop.
-
-### 5. Run the Application
+### 4. Start the Backend
 ```bash
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open in browser:
-- **App:** http://127.0.0.1:8000
+- **API:** http://127.0.0.1:8000
 - **API Docs:** http://127.0.0.1:8000/docs
+- **Health:** http://127.0.0.1:8000/health
+
+### 5. Start the Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:3000**. The Vite dev server proxies `/api` to the
+backend, so no frontend API URL is needed locally.
+
+Or run both with the Windows launcher:
+
+```bat
+run_app.bat
+```
 
 ## API Endpoints
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/employee/register` | Register employee + face embedding |
-| GET  | `/employee/` | List all employees |
-| GET  | `/employee/{id}` | Get single employee |
-| POST | `/attendance/verify` | Verify face & submit attendance |
-| GET  | `/attendance/` | All attendance records |
-| GET  | `/attendance/{employee_id}` | Employee attendance history |
-| GET  | `/attendance/result/{id}` | Get specific attendance record |
-| POST | `/attendance/approval/{id}` | Manager approve/reject |
-| GET  | `/health` | System health check |
+Interactive OpenAPI documentation is available at `/docs`.
+
+Main route prefixes:
+
+| Prefix | Purpose |
+|--------|---------|
+| `/api/auth` | Login, registration, OTP password reset, profile |
+| `/api/admin` | Employees, managers, attendance overrides, settings, audits |
+| `/api/manager` | Team dashboard, employees, leave approvals |
+| `/api/employee` | Dashboard, attendance marking/history, leaves, smart hours |
+| `/api/reports` | Filtered attendance reports and analytics |
+| `/health` | Render health check |
+| `/docs` | Swagger UI |
+
+The `/docs` page is always the authoritative, up-to-date endpoint list.
 
 ## Smart Approval Logic
 

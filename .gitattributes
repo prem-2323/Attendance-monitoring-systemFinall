@@ -1,0 +1,5 @@
+*.sh text eol=lf
+render.yaml text eol=lf
+.python-version text eol=lf
+.nvmrc text eol=lf
+frontend/.nvmrc text eol=lf

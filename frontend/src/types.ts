@@ -77,6 +77,7 @@ export interface ApprovalAudit {
 }
 
 export interface OfficeLocation {
+  id?: string;
   name: string;
   address: string;
   lat: number;
@@ -84,11 +85,16 @@ export interface OfficeLocation {
   allowedRadiusMeters: number;
   /** Office geofence box corners — attendance allowed ONLY inside this polygon. */
   geofencePolygon?: { lat: number; lng: number }[];
+  isActive?: boolean;
 }
 
 export interface SmartHoursConfig {
   expectedHoursPerDay: number;
   graceCheckInMinutes: number; // e.g. 15 minutes
-  standardStartTime: string; // "09:00 AM"
+  standardStartTime: string; // "11:25 AM"
+  standardEndTime?: string; // "07:25 PM"
+  inTime?: string; // "11:25 AM"
+  outTime?: string; // "07:25 PM"
   flexibleWindowMinutes: number; // 180 min
 }
+

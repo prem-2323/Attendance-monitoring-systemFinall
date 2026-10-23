@@ -1,0 +1,12 @@
+# Vercel only builds the React frontend.
+# Keep the upload small; the Python backend and face models are deployed on Render.
+backend/
+models/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+!frontend/.env.example

@@ -79,7 +79,7 @@ def queue_attendance_emails(
     emp_name = str(employee.get("name") or employee.get("full_name") or "Employee")
     emp_email = str(employee.get("email") or "").strip()
 
-    cutoff_str = os.getenv("ATTENDANCE_CUTOFF", "09:30")
+    cutoff_str = os.getenv("ATTENDANCE_CUTOFF", "11:40")
     date_str = attendance_date.strftime("%d %B %Y")
 
     if check_in:
