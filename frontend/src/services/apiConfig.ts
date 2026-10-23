@@ -2,27 +2,22 @@
  * Central API configuration.
  *
  * Local development:
- *   Leave VITE_API_BASE_URL empty. Vite proxies /api/* to http://127.0.0.1:8000.
+ *   If VITE_API_BASE_URL is empty in DEV, Vite proxies /api/* to http://127.0.0.1:8000.
  *
  * Production (Vercel):
- *   Set VITE_API_BASE_URL to the Render service origin, e.g.
- *   https://attendance-api.onrender.com
- *
- * The value may optionally include a trailing "/api"; it is normalised below.
+ *   Uses VITE_API_BASE_URL if configured, and gracefully falls back to the live Render backend:
+ *   https://attendance-monitoring-systemfinall.onrender.com
  */
-const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const DEFAULT_API_ORIGIN = 'https://attendance-monitoring-systemfinall.onrender.com';
 
-export const API_ORIGIN = rawBaseUrl
+const rawBaseUrl = (
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? '' : DEFAULT_API_ORIGIN)
+).trim();
+
+export const API_ORIGIN = (rawBaseUrl || (import.meta.env.DEV ? '' : DEFAULT_API_ORIGIN))
   .replace(/\/+$/, '')
   .replace(/\/api$/i, '');
-
-if (import.meta.env.PROD && !API_ORIGIN) {
-  // This is intentionally loud: without it every request would hit the
-  // Vercel domain (/api/...) and return 404.
-  console.error(
-    '[API] VITE_API_BASE_URL is not configured. Set it in Vercel to your Render backend URL.'
-  );
-}
 
 export function apiUrl(path: string): string {
   const normalisedPath = path.startsWith('/') ? path : `/${path}`;
