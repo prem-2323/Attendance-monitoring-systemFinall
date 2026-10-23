@@ -898,12 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return primary;
     } catch (err) {
       console.warn('[AppContext] Failed to persist office locations to Atlas:', err);
-      const singleLocation = locations.slice(0, 1);
-      setOfficeLocations(singleLocation);
-      if (singleLocation.length > 0) {
-        setOfficeLocation(singleLocation[0]);
-      }
-      return singleLocation;
+      throw err;
     }
   };
 

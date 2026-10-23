@@ -639,7 +639,7 @@ async def get_settings():
         primary_location.setdefault("id", "loc-1")
         primary_location["isActive"] = True
         primary_location.setdefault("allowedRadiusMeters", 1000)
-        if not primary_location.get("geofencePolygon"):
+        if primary_location.get("geofencePolygon") is None:
             primary_location["geofencePolygon"] = doc.get(
                 "geofencePolygon", default_settings["geofencePolygon"]
             )
@@ -714,9 +714,8 @@ async def update_office_locations(payload: OfficeLocationsUpdateRequest):
         set_fields: Dict[str, Any] = {
             "officeLocations": clean_locs,
             "officeLocation": primary_loc,
+            "geofencePolygon": primary_loc["geofencePolygon"],
         }
-        if primary_loc.get("geofencePolygon"):
-            set_fields["geofencePolygon"] = primary_loc["geofencePolygon"]
 
         settings_collection.update_one(
             {"key": "global_settings"},
@@ -777,8 +776,14 @@ async def update_office_settings(payload: OfficeSettingsUpdateRequest):
             for p in (payload.geofencePolygon or [])
             if isinstance(p, dict) and "lat" in p and "lng" in p
         ]
-        if len(clean_poly) < 3:
-            clean_poly = base_primary.get("geofencePolygon") or existing.get("geofencePolygon") or []
+        if payload.geofencePolygon is None:
+            clean_poly = (
+                base_primary.get("geofencePolygon")
+                if base_primary.get("geofencePolygon") is not None
+                else existing.get("geofencePolygon", [])
+            )
+        elif clean_poly and len(clean_poly) < 3:
+            raise HTTPException(status_code=422, detail="A geofence polygon must contain at least three coordinates.")
 
         update_dict = {
             "id": base_primary.get("id", "loc-1"),

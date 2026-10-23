@@ -84,9 +84,9 @@ def verify_geofence_internal(latitude: float, longitude: float):
     if loc.get("isActive") is False:
         return False, dist, loc_name, loc_radius
 
-    raw_polygon = loc.get("geofencePolygon") or (
-        settings_doc.get("geofencePolygon") if settings_doc else []
-    )
+    raw_polygon = loc.get("geofencePolygon")
+    if raw_polygon is None:
+        raw_polygon = settings_doc.get("geofencePolygon", []) if settings_doc else []
     try:
         loc_box = [
             (float(p["lat"]), float(p["lng"]))

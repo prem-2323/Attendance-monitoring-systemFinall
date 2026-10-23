@@ -130,11 +130,12 @@ def seed_initial_settings():
             primary = {**default_locations[0], **cur_primary}
             primary["id"] = "loc-1"
             primary["isActive"] = True
-            primary["geofencePolygon"] = (
-                primary.get("geofencePolygon")
-                or existing.get("geofencePolygon")
-                or polygon_corners
-            )
+            if primary.get("geofencePolygon") is None:
+                primary["geofencePolygon"] = (
+                    existing.get("geofencePolygon")
+                    if existing.get("geofencePolygon") is not None
+                    else polygon_corners
+                )
             settings_collection.update_one(
                 {"key": "global_settings"},
                 {"$set": {
@@ -195,9 +196,13 @@ def seed_initial_settings():
                 primary["id"] = "loc-1"
                 primary["isActive"] = True
                 primary.setdefault("allowedRadiusMeters", OFFICE_RADIUS_METERS)
-                if not primary.get("geofencePolygon"):
-                    primary["geofencePolygon"] = polygon_corners
-                if doc.get("officeLocation") != primary or len(locs) != 1:
+                if primary.get("geofencePolygon") is None:
+                    primary["geofencePolygon"] = doc.get("geofencePolygon") or polygon_corners
+                if (
+                    doc.get("officeLocation") != primary
+                    or len(locs) != 1
+                    or doc.get("geofencePolygon") != primary["geofencePolygon"]
+                ):
                     settings_collection.update_one(
                         {"key": "global_settings"},
                         {"$set": {
@@ -206,11 +211,6 @@ def seed_initial_settings():
                             "geofencePolygon": primary["geofencePolygon"],
                         }},
                     )
-            if not doc.get("geofencePolygon"):
-                settings_collection.update_one(
-                    {"key": "global_settings"},
-                    {"$set": {"geofencePolygon": polygon_corners}},
-                )
     except Exception as e:
         print(f"[DB] Settings seed note: {e}")
 
@@ -269,4 +269,3 @@ if db is not None:
         seed_initial_settings()
     except Exception as idx_err:
         print(f"[DB] Index note: {idx_err}")
-
