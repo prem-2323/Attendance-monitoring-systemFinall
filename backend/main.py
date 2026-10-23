@@ -171,6 +171,56 @@ app.include_router(employee_router.router)
 app.include_router(attendance_router.router)
 app.include_router(app_attendance_router)
 
+# ── Direct Root-Level Compatibility Routes ────────────────────────────────────
+# Registers unprefixed endpoints (/leave/{employee_id}, /users, /audits, /settings,
+# /register/admin, etc.) directly on the router so they appear in app.routes
+# and resolve natively without relying solely on ASGI rewriting.
+from fastapi import APIRouter
+
+root_compat = APIRouter(tags=["Root Compatibility"])
+
+# Auth routes at root
+root_compat.add_api_route("/register/admin", auth_router.register_admin, methods=["POST"], summary="Register admin (root alias)")
+root_compat.add_api_route("/register/manager", auth_router.register_manager, methods=["POST"], summary="Register manager (root alias)")
+root_compat.add_api_route("/register/employee", auth_router.register_employee, methods=["POST"], summary="Register employee (root alias)")
+root_compat.add_api_route("/login", auth_router.login, methods=["POST"], summary="Login (root alias)")
+root_compat.add_api_route("/forgot-password/request", auth_router.forgot_password_request, methods=["POST"], summary="Forgot password request (root alias)")
+root_compat.add_api_route("/forgot-password/verify", auth_router.forgot_password_verify, methods=["POST"], summary="Forgot password verify (root alias)")
+root_compat.add_api_route("/forgot-password/reset", auth_router.forgot_password_reset, methods=["POST"], summary="Forgot password reset (root alias)")
+root_compat.add_api_route("/users", auth_router.get_all_users, methods=["GET"], summary="List users (root alias)")
+root_compat.add_api_route("/managers", auth_router.get_managers, methods=["GET"], summary="List managers (root alias)")
+root_compat.add_api_route("/profile", auth_router.update_profile, methods=["PUT"], summary="Update profile (root alias)")
+
+# Admin routes at root
+root_compat.add_api_route("/dashboard/stats", admin_router.get_dashboard_stats, methods=["GET"], summary="Dashboard stats (root alias)")
+root_compat.add_api_route("/employees", admin_router.list_employees, methods=["GET"], summary="List employees (root alias)")
+root_compat.add_api_route("/employees", admin_router.create_employee, methods=["POST"], summary="Add employee (root alias)")
+root_compat.add_api_route("/employees/{identifier}", admin_router.delete_employee, methods=["DELETE"], summary="Delete employee (root alias)")
+root_compat.add_api_route("/audits", admin_router.list_approval_audits, methods=["GET"], summary="List approval audits (root alias)")
+root_compat.add_api_route("/settings", admin_router.get_settings, methods=["GET"], summary="Get settings (root alias)")
+root_compat.add_api_route("/settings/office", admin_router.update_office_settings, methods=["PUT"], summary="Update office settings (root alias)")
+root_compat.add_api_route("/settings/locations", admin_router.get_office_locations, methods=["GET"], summary="Get office locations (root alias)")
+root_compat.add_api_route("/settings/locations", admin_router.update_office_locations, methods=["PUT"], summary="Update office locations (root alias)")
+root_compat.add_api_route("/settings/smart-hours", admin_router.get_smart_hours_settings, methods=["GET"], summary="Get smart hours (root alias)")
+root_compat.add_api_route("/settings/smart-hours", admin_router.update_smart_hours_settings, methods=["PUT"], summary="Update smart hours (root alias)")
+root_compat.add_api_route("/attendance/override", admin_router.override_attendance, methods=["POST"], summary="Override attendance (root alias)")
+root_compat.add_api_route("/reset", admin_router.reset_database, methods=["POST"], summary="Reset database (root alias)")
+
+# Leave & Portal routes at root
+root_compat.add_api_route("/leave/apply", employee_portal_router.apply_for_leave, methods=["POST"], summary="Apply for leave (root alias)")
+root_compat.add_api_route("/leave/{employee_id}", employee_portal_router.get_employee_leave_requests, methods=["GET"], summary="Get leave requests (root alias)")
+root_compat.add_api_route("/leaves/{manager_id}", manager_router.get_manager_team_leaves, methods=["GET"], summary="Get manager team leaves (root alias)")
+root_compat.add_api_route("/leave/review", manager_router.review_leave_request, methods=["POST"], summary="Review leave (root alias)")
+root_compat.add_api_route("/face/detect", employee_portal_router.detect_live_face, methods=["POST"], summary="Face detect (root alias)")
+root_compat.add_api_route("/attendance/mark", employee_portal_router.mark_employee_attendance, methods=["POST"], summary="Mark attendance (root alias)")
+root_compat.add_api_route("/smart-hours/{employee_id}", employee_portal_router.get_smart_hours_calculation, methods=["GET"], summary="Smart hours (root alias)")
+root_compat.add_api_route("/employee-history/{employee_id}", manager_router.get_manager_employee_history, methods=["GET"], summary="Employee history (root alias)")
+
+# Reports at root
+root_compat.add_api_route("/analytics", reports_router.get_attendance_reports, methods=["GET"], summary="Attendance analytics (root alias)")
+
+app.include_router(root_compat)
+
 
 # ── Root ──────────────────────────────────────────────────────────────────────
 # The React frontend is deployed separately on Vercel, so the backend root is
