@@ -79,6 +79,17 @@ def queue_attendance_emails(
     )
     emp_name = str(employee.get("name") or employee.get("full_name") or "Employee")
     emp_email = str(employee.get("email") or "").strip()
+    if not emp_email and employees_collection is not None:
+        employee_record = employees_collection.find_one({
+            "$or": [
+                {"employeeId": emp_code},
+                {"employee_id": emp_code},
+            ]
+        })
+        if employee_record:
+            emp_email = str(employee_record.get("email") or "").strip()
+    if not emp_email:
+        logger.warning("[Email] No registered email address found for employee %s.", emp_code)
 
     cutoff_str = cutoff_time.strftime("%I:%M %p") if cutoff_time else os.getenv("ATTENDANCE_CUTOFF", "11:40")
     date_str = attendance_date.strftime("%d %B %Y")
@@ -113,10 +124,20 @@ def queue_attendance_emails(
     if users_collection is not None:
         admins = list(
             users_collection.find({
-                "role": "admin",
+                "role": {"$regex": "^admin$", "$options": "i"},
                 "active": {"$ne": False},
             })
         )
+    configured_admin = (os.getenv("ADMIN_EMAIL") or "").strip()
+    if (
+        configured_admin
+        and configured_admin.lower() != "your-admin-email@gmail.com"
+        and not any(
+            str(admin.get("email") or "").strip().lower() == configured_admin.lower()
+            for admin in admins
+        )
+    ):
+        admins.append({"employeeId": "configured", "email": configured_admin})
 
     notifications_to_queue = []
 
@@ -296,6 +317,97 @@ def queue_attendance_emails(
             pass  # Already queued by another process
         except Exception as e:
             logger.error(f"[EmailQueue] Error queuing notification in MongoDB Atlas: {e}")
+
+
+def queue_checkout_summary_email(
+    employee: Dict[str, Any],
+    attendance_date: date,
+    check_in: str,
+    check_out: str,
+    shift: Dict[str, Any],
+    smart_config: Dict[str, Any],
+    arrival_status: str,
+    final_status: str,
+):
+    """Queue the check-out summary for the employee only."""
+    if email_notifications_collection is None:
+        logger.warning("[Email] email_notifications_collection is not connected in MongoDB Atlas.")
+        return
+
+    emp_code = str(
+        employee.get("employeeId")
+        or employee.get("employee_id")
+        or employee.get("id")
+        or "EMP001"
+    )
+    emp_name = str(employee.get("name") or employee.get("full_name") or "Employee")
+    emp_email = str(employee.get("email") or "").strip()
+    if not emp_email and employees_collection is not None:
+        employee_record = employees_collection.find_one({
+            "$or": [
+                {"employeeId": emp_code},
+                {"employee_id": emp_code},
+            ]
+        })
+        if employee_record:
+            emp_email = str(employee_record.get("email") or "").strip()
+    if not emp_email:
+        logger.warning("[Email] No registered email address found for employee %s.", emp_code)
+        return
+
+    required_hours = smart_config.get("expectedHoursPerDay", 8)
+    admin_start = smart_config.get("inTime") or smart_config.get("standardStartTime", "--")
+    admin_end = smart_config.get("outTime") or smart_config.get("standardEndTime", "--")
+    flexible_active = int(smart_config.get("flexibleWindowMinutes", 0)) > 0
+    date_str = attendance_date.strftime("%d %B %Y")
+    subject = f"Attendance Summary: Check-out recorded for {date_str}"
+    body = (
+        f"Dear {emp_name},\n\n"
+        f"Your check-out has been successfully recorded.\n\n"
+        f"Employee ID: {emp_code}\n"
+        f"Date: {date_str}\n"
+        f"Check-in Time: {check_in}\n"
+        f"Check-out Time: {check_out}\n"
+        f"Total Time Worked: {shift.get('workedStr', '--')}\n"
+        f"Attendance Status: {final_status}\n\n"
+        f"Flexible Shift Active: {'Yes' if flexible_active else 'No'}\n"
+        f"Smart Working Hours\n"
+        f"Admin-configured standard hours: {admin_start} to {admin_end}\n"
+        f"Required working hours: {required_hours} hours\n"
+        f"Actual Arrival: Check-in at {check_in} ({arrival_status})\n"
+        f"Calculated Dynamic Target: Required check-out at {shift.get('expectedCheckout', '--')}\n\n"
+        f"Why Smart Flexible Hours Matter\n"
+        f"Traditional clock systems can penalize employees who arrive later than the "
+        f"standard start time. Our smart flexible shift policy dynamically adapts the "
+        f"required check-out time to your actual check-in, so you are not penalized "
+        f"for arriving later as long as you complete your expected working hours.\n\n"
+        f"Regards,\n"
+        f"Attendance Monitoring System"
+    )
+    recipient = emp_email
+    event_key = f"{attendance_date.isoformat()}:{emp_code}:checkout:employee:{recipient.lower()}"
+    if email_notifications_collection.find_one({"event_key": event_key}):
+        return
+
+    doc = {
+        "event_key": event_key,
+        "recipient": recipient,
+        "role": "employee",
+        "subject": subject,
+        "body": body,
+        "status": "pending",
+        "attempts": 0,
+        "last_error": None,
+        "created_at": datetime.utcnow(),
+        "sent_at": None,
+    }
+    try:
+        email_notifications_collection.insert_one(doc)
+        logger.info("[EmailQueue] Queued employee checkout summary %s", event_key)
+    except DuplicateKeyError:
+        pass
+    except Exception as exc:
+        logger.error("[EmailQueue] Error queuing checkout summary: %s", exc)
 
 
 def process_pending_emails(limit: int = 50) -> Dict[str, int]:

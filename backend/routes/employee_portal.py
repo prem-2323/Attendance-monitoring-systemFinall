@@ -236,6 +236,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
         today_str = now.strftime("%Y-%m-%d")
 
         # 4. Smart-hours policy (dynamic from Atlas, never hardcoded).
+        settings_doc = settings_collection.find_one({"key": "global_settings"}) if settings_collection is not None else None
         from backend.services.smart_hours import (
             get_smart_config,
             classify_arrival,
@@ -276,7 +277,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "arrivalStatus": arrival["arrivalStatus"],
                 "status": final_status,
                 "verifiedBy": "Face + GPS",
-                "locationName": payload.locationName or office_name,
+                "locationName": payload.locationName or loc_name,
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
                 "insideGeofence": True,
@@ -291,6 +292,26 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 {"$set": updated_doc},
                 upsert=True,
             )
+
+            try:
+                from backend.app.email_service import (
+                    queue_checkout_summary_email,
+                    process_pending_emails,
+                )
+
+                queue_checkout_summary_email(
+                    employee=emp,
+                    attendance_date=now.date(),
+                    check_in=check_in_time,
+                    check_out=formatted_time,
+                    shift=shift,
+                    smart_config=smart_cfg,
+                    arrival_status=arrival["arrivalStatus"],
+                    final_status=final_status,
+                )
+                process_pending_emails()
+            except Exception as notify_err:
+                logger.warning(f"[Portal] Could not queue checkout summary email: {notify_err}")
 
             return {
                 "success": True,
@@ -318,7 +339,7 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "arrivalStatus": arrival["arrivalStatus"],
                 "status": STATUS_IN_PROGRESS,
                 "verifiedBy": "Face + GPS",
-                "locationName": payload.locationName or office_name,
+                "locationName": payload.locationName or loc_name,
                 "distanceMeters": round(payload.distanceMeters),
                 "withinRadius": True,
                 "insideGeofence": True,
