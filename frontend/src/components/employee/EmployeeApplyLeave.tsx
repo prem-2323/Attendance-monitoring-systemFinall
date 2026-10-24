@@ -18,9 +18,10 @@ interface EmployeeApplyLeaveProps {
 }
 
 export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNavigateStatus }) => {
-  const { currentUser, applyLeave } = useApp();
+  const { currentUser, applyLeave, smartHoursConfig } = useApp();
 
   const [leaveType, setLeaveType] = useState<LeaveType>('Casual Leave');
+  const [halfDayPeriod, setHalfDayPeriod] = useState<'Morning' | 'Afternoon' | ''>('');
   const [fromDate, setFromDate] = useState(() => getIndiaDateOffsetString(1));
   const [toDate, setToDate] = useState(() => getIndiaDateOffsetString(2));
   const [reason, setReason] = useState('');
@@ -66,7 +67,8 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
         employeeId: currentUser.employeeId,
         leaveType,
         fromDate,
-        toDate,
+        toDate: halfDayPeriod ? fromDate : toDate,
+        halfDayPeriod: halfDayPeriod || undefined,
         reason,
       });
       setSubmittedSuccess(true);
@@ -183,7 +185,10 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
                 type="date"
                 required
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  if (halfDayPeriod) setToDate(e.target.value);
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all shadow-xs"
               />
             </div>
@@ -197,9 +202,31 @@ export const EmployeeApplyLeave: React.FC<EmployeeApplyLeaveProps> = ({ onNaviga
                 required
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
+                disabled={Boolean(halfDayPeriod)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all shadow-xs"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={Boolean(halfDayPeriod)}
+                onChange={(e) => {
+                  const selected = e.target.checked ? 'Morning' : '';
+                  setHalfDayPeriod(selected);
+                  if (selected) setToDate(fromDate);
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Request half-day leave
+            </label>
+            {halfDayPeriod && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+                Morning half-day leave uses 0.5 day from this leave type. If approved, you can check in later and work at least {(smartHoursConfig.expectedHoursPerDay / 2).toString()} hours; the system will calculate the evening checkout target from your actual check-in.
+              </div>
+            )}
           </div>
 
           {/* Reason */}

@@ -72,10 +72,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
   const totalEmployeesCount = liveStats?.totalEmployeesCount ?? users.filter((u) => u.role === 'employee').length;
   const presentCount = liveStats?.presentCount ?? todayAttendance.filter(
-    (a) => a.status === 'Present' || a.status === 'Working'
+    (a) => a.status === 'Present' || a.status === 'Working' || a.status === 'Present — Flexible Shift' || a.status === 'Present — Half Day Leave'
   ).length;
   const lateCount = liveStats?.lateCount ?? todayAttendance.filter((a) => a.status === 'Late').length;
-  const onLeaveCount = liveStats?.onLeaveCount ?? todayAttendance.filter((a) => a.status === 'On Leave').length;
+  const onLeaveCount = liveStats?.onLeaveCount ?? todayAttendance.filter((a) => a.status === 'On Leave' || a.status === 'Half Day Leave').length;
   const absentCount = liveStats?.absentCount ?? Math.max(0, totalEmployeesCount - (presentCount + lateCount + onLeaveCount));
 
   const totalTracked = Math.max(1, presentCount + lateCount + onLeaveCount + absentCount);

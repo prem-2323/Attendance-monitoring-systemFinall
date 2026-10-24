@@ -365,6 +365,7 @@ def queue_checkout_summary_email(
         return {"event_key": None, "recipient": None, "status": "missing_email"}
 
     required_hours = smart_config.get("expectedHoursPerDay", 8)
+    half_day_leave = bool(smart_config.get("halfDayLeaveActive"))
     admin_start = smart_config.get("inTime") or smart_config.get("standardStartTime", "--")
     admin_end = smart_config.get("outTime") or smart_config.get("standardEndTime", "--")
     flexible_active = int(smart_config.get("flexibleWindowMinutes", 0)) > 0
@@ -382,10 +383,17 @@ def queue_checkout_summary_email(
         f"Flexible Shift Active: {'Yes' if flexible_active else 'No'}\n"
         f"Smart Working Hours\n\n"
         f"Why Smart Flexible Hours Matter\n"
-        f"Traditional clock systems penalize employees who arrive at 12:00 PM with an "
-        f"automatic half-day absence. Our smart flexible shift policy dynamically "
-        f"adapts the required checkout threshold so that employees are not penalized "
-        f"as long as they complete their expected {required_hours} working hours.\n\n"
+        + (
+            f"Your approved half-day leave is applied. Work at least {required_hours} "
+            f"hours after checking in; your checkout target is calculated from your "
+            f"actual arrival so you can make up the remaining hours in the evening.\n\n"
+            if half_day_leave else
+            f"Traditional clock systems penalize employees who arrive at 12:00 PM with an "
+            f"automatic half-day absence. Our smart flexible shift policy dynamically "
+            f"adapts the required checkout threshold so that employees are not penalized "
+            f"as long as they complete their expected {required_hours} working hours.\n\n"
+        )
+        +
         f"Policy Standard\n"
         f"Required Hours = {required_hours}\n\n"
         f"Actual Arrival\n"

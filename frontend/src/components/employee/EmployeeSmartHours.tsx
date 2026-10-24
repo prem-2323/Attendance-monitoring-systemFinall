@@ -23,6 +23,8 @@ export const EmployeeSmartHours: React.FC = () => {
   // Find employee's today record check-in
   const todayRec = todayAttendance.find((a) => a.employeeId === empId);
   const initialCheckIn = todayRec?.checkIn || smartHoursConfig?.inTime || '11:25 AM';
+  const initialTargetHours = todayRec?.targetHoursPerDay || smartHoursConfig?.expectedHoursPerDay || 8;
+  const initialTargetMinutes = Math.round(initialTargetHours * 60);
 
   // Interactive Simulator parameters
   const [simulatedCheckIn, setSimulatedCheckIn] = useState<string>(initialCheckIn);
@@ -33,13 +35,18 @@ export const EmployeeSmartHours: React.FC = () => {
     checkInTime: todayRec?.checkIn || '--',
     expectedCheckoutTime: todayRec?.checkOut || smartHoursConfig?.outTime || '--',
     workedTime: todayRec?.hoursWorked || '--',
-    remainingTime: todayRec?.checkIn ? 'In Progress' : '8h 00m',
+    remainingTime: todayRec?.checkIn
+      ? 'In Progress'
+      : `${Math.floor(initialTargetMinutes / 60)}h ${String(initialTargetMinutes % 60).padStart(2, '0')}m`,
     completionPercent: 0,
-    targetHoursPerDay: 8,
-    smartPolicy: 'Flexible shift window with 8 full working hours enforcement',
+    targetHoursPerDay: initialTargetHours,
+    halfDayLeave: todayRec?.halfDayLeave,
+    leavePeriod: todayRec?.leavePeriod,
+    smartPolicy: `Flexible shift window with ${initialTargetHours} working hours enforcement`,
   });
 
   const [simPreview, setSimPreview] = useState<SmartHoursResponse['simulated']>(null);
+  const targetMinutes = Math.round(metrics.targetHoursPerDay * 60);
 
   const fetchShiftCalculation = async (checkIn: string, currTime?: string) => {
     if (!empId) {
@@ -72,14 +79,25 @@ export const EmployeeSmartHours: React.FC = () => {
         const expAmpm = expH24 >= 12 ? 'PM' : 'AM';
         const expH12 = expH24 % 12 === 0 ? 12 : expH24 % 12;
         const expTimeStr = `${String(expH12).padStart(2, '0')}:${String(expM).padStart(2, '0')} ${expAmpm}`;
+        const [currHStr, currMStr] = (currTime || '05:00 PM').split(':');
+        const [currMVal, currAmpm] = currMStr.split(' ');
+        let currH = parseInt(currHStr, 10);
+        if (currAmpm === 'PM' && currH !== 12) currH += 12;
+        if (currAmpm === 'AM' && currH === 12) currH = 0;
+        const currentTotalMins = currH * 60 + parseInt(currMVal, 10);
+        const workedMinutes = (currentTotalMins - inTotalMins + 24 * 60) % (24 * 60);
+        const targetMinutes = Math.round(targetH * 60);
+        const remainingMinutes = Math.max(0, targetMinutes - workedMinutes);
+        const formatDuration = (minutes: number) =>
+          `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 
         setMetrics({
           employeeId: empId,
           checkInTime: checkIn,
           expectedCheckoutTime: expTimeStr,
-          workedTime: '6h 00m',
-          remainingTime: '2h 00m',
-          completionPercent: 75,
+          workedTime: formatDuration(workedMinutes),
+          remainingTime: formatDuration(remainingMinutes),
+          completionPercent: targetMinutes ? Math.min(100, Math.round((workedMinutes / targetMinutes) * 100)) : 0,
           targetHoursPerDay: targetH,
           smartPolicy: 'Flexible shift policy (offline fallback)',
         });
@@ -178,7 +196,7 @@ export const EmployeeSmartHours: React.FC = () => {
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-md bg-blue-50 px-3 py-1 font-semibold text-blue-700 border border-blue-200/80">
-                  Flexible Shift Active
+                  {metrics.halfDayLeave ? `Approved ${metrics.leavePeriod || 'Morning'} Half-Day Leave` : 'Flexible Shift Active'}
                 </span>
                 {metrics.dayStatus && (
                   <span className="rounded-md bg-slate-100 px-3 py-1 font-semibold text-slate-700 border border-slate-200">
@@ -254,7 +272,7 @@ export const EmployeeSmartHours: React.FC = () => {
             <div className="space-y-2 pt-2">
               <div className="flex justify-between text-xs font-semibold text-slate-700">
                 <span>{metrics.completionPercent}% completed (actual)</span>
-                <span className="text-slate-500 font-normal">{metrics.workedTime} / {metrics.targetHoursPerDay}h 00m</span>
+                <span className="text-slate-500 font-normal">{metrics.workedTime} / {Math.floor(targetMinutes / 60)}h {String(targetMinutes % 60).padStart(2, '0')}m</span>
               </div>
               <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div
@@ -276,8 +294,9 @@ export const EmployeeSmartHours: React.FC = () => {
               </h3>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed font-normal">
-              Traditional clock systems penalize employees who arrive at 12:00 PM with an automatic half-day absence.
-              Our smart flexible shift policy dynamically adapts the required checkout threshold so that employees are not penalized as long as they complete their expected {metrics.targetHoursPerDay} working hours.
+              {metrics.halfDayLeave
+                ? `Your ${metrics.leavePeriod || 'morning'} half-day leave is approved. Work at least ${metrics.targetHoursPerDay} hours after checking in; your checkout target is calculated from your actual arrival so you can make up the remaining hours in the evening.`
+                : `Traditional clock systems penalize employees who arrive at 12:00 PM with an automatic half-day absence. Our smart flexible shift policy dynamically adapts the required checkout threshold so that employees are not penalized as long as they complete their expected ${metrics.targetHoursPerDay} working hours.`}
             </p>
 
             {/* Formula Section using small cards */}

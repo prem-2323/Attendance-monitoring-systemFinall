@@ -128,7 +128,7 @@ export const ManagerLeaveApproval: React.FC = () => {
   const employeeAttendanceHistory = modalAnalysis?.records || fallbackHistory;
   const totalDays = modalAnalysis?.stats?.totalDays || Math.max(1, employeeAttendanceHistory.length);
   const presentDays = modalAnalysis?.stats?.presentDays || employeeAttendanceHistory.filter(
-    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === 'Present — Flexible Shift'
+    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === 'Present — Flexible Shift' || a.status === 'Present — Half Day Leave'
   ).length;
   const lateDays = modalAnalysis?.stats?.lateDays || employeeAttendanceHistory.filter((a) => a.status === 'Late').length;
   const absentDays = modalAnalysis?.stats?.absentDays || employeeAttendanceHistory.filter((a) => a.status === 'Absent').length;
@@ -262,11 +262,14 @@ export const ManagerLeaveApproval: React.FC = () => {
 
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                      {req.leaveType}
+                      {req.halfDayPeriod ? `${req.leaveType} · Half Day (${req.halfDayPeriod})` : req.leaveType}
                     </span>
                     <span className="flex items-center gap-1.5 text-slate-600 font-medium">
                       <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      <span>{req.fromDate} to {req.toDate} ({req.daysCount} Day{req.daysCount > 1 ? 's' : ''})</span>
+                      <span>
+                        {req.fromDate} to {req.toDate} (
+                        {req.halfDayPeriod ? '0.5 day' : `${req.daysCount} Day${req.daysCount > 1 ? 's' : ''}`})
+                      </span>
                     </span>
                     <span className="text-slate-300">·</span>
                     <span className="text-slate-400">Requested: {req.requestedAt}</span>
@@ -492,8 +495,10 @@ export const ManagerLeaveApproval: React.FC = () => {
                                       ? 'bg-blue-50 text-blue-700 border border-blue-200/80'
                                       : h.status === 'Late'
                                       ? 'bg-amber-50 text-amber-700 border border-amber-200/80'
-                                      : h.status === 'On Leave'
+                                      : h.status === 'On Leave' || h.status === 'Half Day Leave'
                                       ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
+                                      : h.status === 'Present — Half Day Leave'
+                                      ? 'bg-teal-50 text-teal-700 border border-teal-200/80'
                                       : 'bg-rose-50 text-rose-700 border border-rose-200/80'
                                   }`}
                                 >

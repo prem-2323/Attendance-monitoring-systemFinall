@@ -68,10 +68,10 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
 
   const totalTeamCount = liveDashboard?.totalTeamCount ?? myEmployees.length;
   const presentCount = liveDashboard?.presentCount ?? myTeamToday.filter(
-    (a) => a.status === 'Present' || a.status === 'Working'
+    (a) => a.status === 'Present' || a.status === 'Working' || a.status === 'Present — Half Day Leave'
   ).length;
   const lateCount = liveDashboard?.lateCount ?? myTeamToday.filter((a) => a.status === 'Late').length;
-  const onLeaveCount = liveDashboard?.onLeaveCount ?? myTeamToday.filter((a) => a.status === 'On Leave').length;
+  const onLeaveCount = liveDashboard?.onLeaveCount ?? myTeamToday.filter((a) => a.status === 'On Leave' || a.status === 'Half Day Leave').length;
   const absentCount = liveDashboard?.absentCount ?? Math.max(0, totalTeamCount - (presentCount + lateCount + onLeaveCount));
 
   // Pending leaves for my team
@@ -238,14 +238,16 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
                         <td className="px-6 py-4">
                           <span
                             className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
-                              rec.status === 'Present'
+                              rec.status === 'Present' || rec.status === 'Present — Flexible Shift'
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
                                 : rec.status === 'Working'
                                 ? 'bg-blue-50 text-blue-700 border-blue-200/80'
                                 : rec.status === 'Late'
                                 ? 'bg-amber-50 text-amber-700 border-amber-200/80'
-                                : rec.status === 'On Leave'
+                                : rec.status === 'On Leave' || rec.status === 'Half Day Leave'
                                 ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                : rec.status === 'Present — Half Day Leave'
+                                ? 'bg-teal-50 text-teal-700 border-teal-200/80'
                                 : 'bg-rose-50 text-rose-700 border-rose-200/80'
                             }`}
                           >
@@ -253,8 +255,10 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right text-xs text-slate-500">
-                          {rec.status === 'Present' || rec.status === 'Working' ? (
-                            <span className="text-emerald-600 font-semibold">On Track (8h)</span>
+                          {rec.status === 'Present' || rec.status === 'Working' || rec.status === 'Present — Half Day Leave' ? (
+                            <span className="text-emerald-600 font-semibold">
+                              On Track ({rec.targetHoursPerDay ?? 8}h)
+                            </span>
                           ) : (
                             <span>Standard Shift</span>
                           )}

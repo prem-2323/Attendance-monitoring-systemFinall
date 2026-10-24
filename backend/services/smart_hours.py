@@ -19,10 +19,11 @@ DEFAULT_SMART_CONFIG: Dict[str, Any] = {
 
 STATUS_PRESENT = "Present"
 STATUS_FLEX = "Present \u2014 Flexible Shift"
+STATUS_HALF_DAY = "Present \u2014 Half Day Leave"
 STATUS_IN_PROGRESS = "In Progress"
 STATUS_LATE = "Late"
 
-PRESENT_LIKE = ("Present", "Working", STATUS_FLEX)
+PRESENT_LIKE = ("Present", "Working", STATUS_FLEX, STATUS_HALF_DAY)
 
 
 def get_smart_config(settings_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -198,6 +199,8 @@ def finalize_status(check_in_str: Optional[str], check_out_str: Optional[str],
     if not shift["hasCheckout"]:
         return STATUS_IN_PROGRESS, {"arrival": arrival, "shift": shift}
     if shift["meetsRequirement"]:
+        if cfg.get("halfDayLeaveActive"):
+            return STATUS_HALF_DAY, {"arrival": arrival, "shift": shift}
         if not arrival["arrivalLate"]:
             return STATUS_PRESENT, {"arrival": arrival, "shift": shift}
         if int(cfg.get("flexibleWindowMinutes", 0)) > 0 and arrival["withinFlex"]:
@@ -219,7 +222,7 @@ def count_statuses(records) -> Dict[str, int]:
     present = late = leave = absent = inprog = flex = 0
     for r in records:
         st = (r.get("status") if isinstance(r, dict) else getattr(r, "status", None))
-        if st in ("Present", "Working"):
+        if st in ("Present", "Working", STATUS_HALF_DAY):
             present += 1
         elif st == STATUS_FLEX:
             present += 1
@@ -228,7 +231,7 @@ def count_statuses(records) -> Dict[str, int]:
             inprog += 1
         elif st == "Late":
             late += 1
-        elif st == "On Leave":
+        elif st in ("On Leave", "Half Day Leave"):
             leave += 1
         elif st == "Absent":
             absent += 1

@@ -160,11 +160,11 @@ export const EmployeeLeaveStatus: React.FC<EmployeeLeaveStatusProps> = ({ onAppl
                     <td className="px-6 py-4 font-semibold text-slate-900">
                       <div>{item.fromDate} to {item.toDate}</div>
                       <div className="text-[11px] text-slate-400 font-normal">
-                        {item.daysCount} Day{item.daysCount > 1 ? 's' : ''}
+                        {item.halfDayPeriod ? `Half day (${item.halfDayPeriod})` : `${item.daysCount} Day${item.daysCount > 1 ? 's' : ''}`}
                       </div>
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-900">
-                      {item.leaveType}
+                      {item.halfDayPeriod ? `${item.leaveType} · Half Day` : item.leaveType}
                     </td>
                     <td className="px-6 py-4">
                       {getStatusBadge(item.status)}

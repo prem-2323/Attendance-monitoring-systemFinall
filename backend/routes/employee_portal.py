@@ -33,6 +33,27 @@ from backend.services.timezone import india_now
 
 logger = logging.getLogger("employee_portal_routes")
 router = APIRouter(tags=["Employee Portal"])
+
+
+def _get_effective_smart_config(employee_id: str, attendance_date: str, base_config: Dict[str, Any]):
+    """Use half the configured daily target when approved half-day leave covers the date."""
+    if leave_requests_collection is None:
+        return base_config, None
+    approved_leave = leave_requests_collection.find_one({
+        "employeeId": employee_id,
+        "status": "Approved",
+        "halfDayPeriod": {"$in": ["Morning", "Afternoon"]},
+        "fromDate": {"$lte": attendance_date},
+        "toDate": {"$gte": attendance_date},
+    })
+    if not approved_leave:
+        return base_config, None
+    effective_config = dict(base_config)
+    effective_config["expectedHoursPerDay"] = float(base_config.get("expectedHoursPerDay", 8)) / 2
+    effective_config["halfDayLeaveActive"] = True
+    return effective_config, approved_leave
+
+
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to sanitize MongoDB document for JSON responses."""
     if not doc:
@@ -246,7 +267,10 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
             STATUS_IN_PROGRESS,
         )
         smart_cfg = get_smart_config(settings_doc)
-        target_hours = int(smart_cfg.get("expectedHoursPerDay", 8))
+        smart_cfg, half_day_leave = _get_effective_smart_config(
+            payload.employeeId, today_str, smart_cfg
+        )
+        target_hours = float(smart_cfg.get("expectedHoursPerDay", 8))
 
         # Check existing today record
         existing = attendance_collection.find_one({
@@ -276,6 +300,9 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "targetMinutes": shift["targetMinutes"],
                 "expectedCheckout": shift["expectedCheckout"],
                 "arrivalStatus": arrival["arrivalStatus"],
+                "halfDayLeave": bool(half_day_leave),
+                "leavePeriod": half_day_leave.get("halfDayPeriod") if half_day_leave else None,
+                "targetHoursPerDay": target_hours,
                 "status": final_status,
                 "verifiedBy": "Face + GPS",
                 "locationName": payload.locationName or loc_name,
@@ -358,6 +385,9 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                 "targetMinutes": shift_preview["targetMinutes"],
                 "expectedCheckout": shift_preview["expectedCheckout"],
                 "arrivalStatus": arrival["arrivalStatus"],
+                "halfDayLeave": bool(half_day_leave),
+                "leavePeriod": half_day_leave.get("halfDayPeriod") if half_day_leave else None,
+                "targetHoursPerDay": target_hours,
                 "status": STATUS_IN_PROGRESS,
                 "verifiedBy": "Face + GPS",
                 "locationName": payload.locationName or loc_name,
@@ -674,13 +704,20 @@ async def apply_for_leave(payload: ApplyLeaveRequest):
         if not emp:
             raise HTTPException(status_code=404, detail="Employee not found")
 
-        # Calculate days count
+        # A half-day request is limited to one date and consumes half a leave day.
         try:
             d_from = datetime.strptime(payload.fromDate, "%Y-%m-%d")
             d_to = datetime.strptime(payload.toDate, "%Y-%m-%d")
-            days_count = max(1, (d_to - d_from).days + 1)
-        except Exception:
-            days_count = 1
+            if d_to < d_from:
+                raise HTTPException(status_code=400, detail="End date cannot be before start date.")
+            half_day_period = payload.halfDayPeriod
+            if half_day_period and d_from != d_to:
+                raise HTTPException(status_code=400, detail="Half-day leave must be for a single date.")
+            if half_day_period and half_day_period not in ("Morning", "Afternoon"):
+                raise HTTPException(status_code=400, detail="Half-day period must be Morning or Afternoon.")
+            days_count = 0.5 if half_day_period else (d_to - d_from).days + 1
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Dates must use YYYY-MM-DD format.") from exc
 
         now = india_now()
         new_leave = {
@@ -690,6 +727,7 @@ async def apply_for_leave(payload: ApplyLeaveRequest):
             "employeeEmail": emp.get("email", ""),
             "department": emp.get("department", "Engineering"),
             "leaveType": payload.leaveType,
+            "halfDayPeriod": payload.halfDayPeriod,
             "fromDate": payload.fromDate,
             "toDate": payload.toDate,
             "daysCount": days_count,
@@ -828,9 +866,9 @@ async def get_smart_hours_calculation(
         cfg = get_smart_config(settings_doc)
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         response.headers["Pragma"] = "no-cache"
-        target_h = int(cfg.get("expectedHoursPerDay", 8))
-
         today_str = india_now().strftime("%Y-%m-%d")
+        cfg, half_day_leave = _get_effective_smart_config(employee_id, today_str, cfg)
+        target_h = float(cfg.get("expectedHoursPerDay", 8))
         today_rec = attendance_collection.find_one({
             "$or": [{"employeeId": employee_id}, {"employee_id": employee_id}],
             "date": today_str,
@@ -868,7 +906,10 @@ async def get_smart_hours_calculation(
             "remainingTime": actual["remainingStr"],
             "completionPercent": actual["completionPct"],
             "targetHoursPerDay": target_h,
+            "halfDayLeave": bool(half_day_leave),
+            "leavePeriod": half_day_leave.get("halfDayPeriod") if half_day_leave else None,
             "smartPolicy": (
+                f"{'Approved half-day leave: work ' if half_day_leave else ''}"
                 f"Flexible {int(cfg.get('flexibleWindowMinutes', 180)) // 60}-hour window "
                 f"with {target_h} full working hours enforcement "
                 f"(Shift: {std_in_default} to {std_out_default}, +{cfg.get('graceCheckInMinutes', 15)}m grace)"

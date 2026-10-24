@@ -101,10 +101,10 @@ export const EmployeeAttendanceHistory: React.FC = () => {
   // Calculate statistics: flexible shift counts as present; in-progress never absent.
   const FLEX = 'Present — Flexible Shift';
   const INPROG = 'In Progress';
-  const isPresentLike = (s: string) => s === 'Present' || s === 'Working' || s === FLEX;
+  const isPresentLike = (s: string) => s === 'Present' || s === 'Working' || s === FLEX || s === 'Present — Half Day Leave';
   const presentDays = liveStats?.presentDays ?? allRecords.filter((a) => isPresentLike(a.status)).length;
   const lateDays = liveStats?.lateDays ?? allRecords.filter((a) => a.status === 'Late').length;
-  const leaveDays = liveStats?.leaveDays ?? allRecords.filter((a) => a.status === 'On Leave').length;
+  const leaveDays = liveStats?.leaveDays ?? allRecords.filter((a) => a.status === 'On Leave' || a.status === 'Half Day Leave').length;
   const absentDays = liveStats?.absentDays ?? allRecords.filter((a) => a.status === 'Absent').length;
   const inProgressDays = liveStats?.inProgressDays ?? allRecords.filter((a) => a.status === INPROG).length;
   const flexibleDays = liveStats?.flexibleShiftDays ?? allRecords.filter((a) => a.status === FLEX).length;
@@ -117,6 +117,10 @@ export const EmployeeAttendanceHistory: React.FC = () => {
         return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
       case 'Present — Flexible Shift':
         return 'bg-teal-50 text-teal-700 border-teal-200/80';
+      case 'Present — Half Day Leave':
+        return 'bg-teal-50 text-teal-700 border-teal-200/80';
+      case 'Half Day Leave':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
       case 'In Progress':
         return 'bg-sky-50 text-sky-700 border-sky-200/80';
       case 'Working':

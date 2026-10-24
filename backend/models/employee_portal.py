@@ -28,6 +28,7 @@ class ApplyLeaveRequest(BaseModel):
     leaveType: str = Field(..., min_length=2)
     fromDate: str = Field(...)
     toDate: str = Field(...)
+    halfDayPeriod: Optional[str] = None
     reason: str = Field(..., min_length=3)
 
 
@@ -42,4 +43,3 @@ class FaceDetectRequest(BaseModel):
     faceImageBase64: Optional[str] = None
     image: Optional[str] = None
     employeeId: Optional[str] = None
-

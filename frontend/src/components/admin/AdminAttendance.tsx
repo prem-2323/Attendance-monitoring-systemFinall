@@ -111,21 +111,29 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
 
   // Calculate metrics for the active filtered dataset
   const totalRecords = filteredList.length;
-  const presentCount = filteredList.filter((r) => r.status === 'Present' || r.status === 'Working').length;
+  const presentCount = filteredList.filter((r) =>
+    r.status === 'Present' ||
+    r.status === 'Working' ||
+    r.status === 'Present — Flexible Shift' ||
+    r.status === 'Present — Half Day Leave'
+  ).length;
   const lateCount = filteredList.filter((r) => r.status === 'Late').length;
-  const leaveCount = filteredList.filter((r) => r.status === 'On Leave').length;
+  const leaveCount = filteredList.filter((r) => r.status === 'On Leave' || r.status === 'Half Day Leave').length;
   const absentCount = filteredList.filter((r) => r.status === 'Absent').length;
   const attendancePct = totalRecords > 0 ? Math.round(((presentCount + lateCount) / totalRecords) * 100) : 0;
 
   const getStatusBadge = (status: AttendanceStatus) => {
     switch (status) {
       case 'Present':
+      case 'Present — Half Day Leave':
+      case 'Present — Flexible Shift':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'Working':
         return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'Late':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'On Leave':
+      case 'Half Day Leave':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'Absent':
         return 'bg-rose-50 text-rose-700 border-rose-200';

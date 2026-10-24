@@ -19,7 +19,7 @@ export interface User {
   title?: string;
 }
 
-export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'On Leave' | 'Working' | 'In Progress' | 'Present — Flexible Shift';
+export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'On Leave' | 'Half Day Leave' | 'Working' | 'In Progress' | 'Present — Flexible Shift' | 'Present — Half Day Leave';
 
 export interface AttendanceRecord {
   id: string;
@@ -30,6 +30,9 @@ export interface AttendanceRecord {
   checkIn?: string; // e.g. "09:12 AM"
   checkOut?: string; // e.g. "06:10 PM"
   hoursWorked?: string; // e.g. "8h 58m"
+  targetHoursPerDay?: number;
+  halfDayLeave?: boolean;
+  leavePeriod?: 'Morning' | 'Afternoon' | null;
   status: AttendanceStatus;
   verifiedBy: 'Face + GPS' | 'Manual Override' | 'Biometric';
   locationName: string;
@@ -53,6 +56,7 @@ export interface LeaveRequest {
   fromDate: string;
   toDate: string;
   daysCount: number;
+  halfDayPeriod?: 'Morning' | 'Afternoon';
   reason: string;
   status: LeaveStatus;
   requestedAt: string;
@@ -97,4 +101,3 @@ export interface SmartHoursConfig {
   outTime?: string; // "07:25 PM"
   flexibleWindowMinutes: number; // 180 min
 }
-

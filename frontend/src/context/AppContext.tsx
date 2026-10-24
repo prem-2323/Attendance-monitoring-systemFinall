@@ -81,6 +81,7 @@ interface AppContextType {
     leaveType: LeaveRequest['leaveType'];
     fromDate: string;
     toDate: string;
+    halfDayPeriod?: 'Morning' | 'Afternoon';
     reason: string;
   }) => Promise<LeaveRequest>;
   reviewLeaveRequest: (
@@ -726,12 +727,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     leaveType,
     fromDate,
     toDate,
+    halfDayPeriod,
     reason,
   }: {
     employeeId: string;
     leaveType: LeaveRequest['leaveType'];
     fromDate: string;
     toDate: string;
+    halfDayPeriod?: 'Morning' | 'Afternoon';
     reason: string;
   }): Promise<LeaveRequest> => {
     const emp = users.find((u) => u.employeeId === employeeId);
@@ -742,6 +745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         leaveType,
         fromDate,
         toDate,
+        halfDayPeriod,
         reason,
       });
 

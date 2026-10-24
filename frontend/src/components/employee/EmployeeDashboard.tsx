@@ -86,7 +86,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const FLEX_S = 'Present — Flexible Shift';
   const INPROG_S = 'In Progress';
   const presentCount = allMyRecords.filter(
-    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === FLEX_S
+    (a) => a.status === 'Present' || a.status === 'Working' || (a.status as string) === FLEX_S || a.status === 'Present — Half Day Leave'
   ).length;
   const inProgressCount = allMyRecords.filter((a) => (a.status as string) === INPROG_S).length;
   const lateCount = allMyRecords.filter((a) => a.status === 'Late').length;
@@ -98,6 +98,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const remainingTime = liveSmartHours?.remainingTime || (checkInTime !== '--' ? 'Pending' : '--');
   const liveShiftConfig = liveSmartHours?.smartConfig || smartHoursConfig;
   const requiredHours = liveSmartHours?.targetHoursPerDay ?? liveShiftConfig.expectedHoursPerDay;
+  const requiredMinutes = Math.round(requiredHours * 60);
+  const requiredDuration = `${Math.floor(requiredMinutes / 60)}h ${String(requiredMinutes % 60).padStart(2, '0')}m`;
   const expectedCheckout = checkInTime !== '--'
     ? (liveSmartHours?.expectedCheckoutTime || liveShiftConfig.outTime || '--')
     : (liveShiftConfig.outTime || '--');
@@ -293,7 +295,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
 
               <div className="space-y-1">
                 <span className="text-xs font-medium text-slate-500">Remaining</span>
-                <div className="text-base font-bold text-amber-600">{checkInTime !== '--' ? remainingTime : '8h 00m'}</div>
+                <div className="text-base font-bold text-amber-600">{checkInTime !== '--' ? remainingTime : requiredDuration}</div>
               </div>
 
               <div className="space-y-1">

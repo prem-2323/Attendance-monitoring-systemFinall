@@ -23,6 +23,7 @@ export interface ApplyLeavePayload {
   leaveType: LeaveType;
   fromDate: string;
   toDate: string;
+  halfDayPeriod?: 'Morning' | 'Afternoon';
   reason: string;
 }
 
@@ -76,6 +77,8 @@ export interface SmartHoursResponse {
   remainingTime: string;
   completionPercent: number;
   targetHoursPerDay: number;
+  halfDayLeave?: boolean;
+  leavePeriod?: 'Morning' | 'Afternoon' | null;
   smartPolicy: string;
   dayStatus?: string;
   arrivalStatus?: string;

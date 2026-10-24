@@ -77,11 +77,11 @@ export const ReportsView: React.FC = () => {
       let lvCount = 0;
       let ipCount = 0;
       filtered.forEach((r) => {
-        if (r.status === 'Present' || r.status === 'Working' || (r.status as string) === 'Present — Flexible Shift') pCount++;
+        if (        r.status === 'Present' || r.status === 'Working' || (r.status as string) === 'Present — Flexible Shift' || r.status === 'Present — Half Day Leave') pCount++;
         else if (r.status === 'Late') lCount++;
         else if ((r.status as string) === 'In Progress') ipCount++;
         else if (r.status === 'Absent') aCount++;
-        else if (r.status === 'On Leave') lvCount++;
+        else if (r.status === 'On Leave' || r.status === 'Half Day Leave') lvCount++;
       });
       const totRecs = filtered.length;
       const deptUsers = users.filter(

@@ -320,7 +320,12 @@ async def review_leave_request(payload: ReviewLeavePayload):
                 "id": f"audit-{int(now.timestamp() * 1000)}",
                 "employeeId": leave_doc.get("employeeId", ""),
                 "employeeName": leave_doc.get("employeeName", "Employee"),
-                "requestType": f"{leave_doc.get('leaveType', 'Leave')} ({leave_doc.get('daysCount', 1)} days: {leave_doc.get('fromDate')})",
+                "requestType": (
+                    f"{leave_doc.get('leaveType', 'Leave')} half-day "
+                    f"({leave_doc.get('halfDayPeriod')}: {leave_doc.get('fromDate')})"
+                    if leave_doc.get("halfDayPeriod") in ("Morning", "Afternoon")
+                    else f"{leave_doc.get('leaveType', 'Leave')} ({leave_doc.get('daysCount', 1)} days: {leave_doc.get('fromDate')})"
+                ),
                 "decision": payload.decision,
                 "managerId": payload.managerId or leave_doc.get("managerId", ""),
                 "managerName": mgr_name,
@@ -334,23 +339,39 @@ async def review_leave_request(payload: ReviewLeavePayload):
         # 4. If approved and covers today, reflect 'On Leave' in today's attendance
         from_date = leave_doc.get("fromDate", "")
         to_date = leave_doc.get("toDate", "")
-        if payload.decision == "Approved" and from_date <= date_str <= to_date:
+        half_day = leave_doc.get("halfDayPeriod") in ("Morning", "Afternoon")
+        if payload.decision == "Approved" and (half_day or from_date <= date_str <= to_date):
             if attendance_collection is not None:
+                employee_id = leave_doc.get("employeeId")
+                attendance_date = from_date if half_day else date_str
+                half_day_hours = None
+                if half_day:
+                    from backend.services.smart_hours import get_smart_config_from_db
+                    half_day_hours = float(get_smart_config_from_db().get("expectedHoursPerDay", 8)) / 2
+                leave_attendance = {
+                    "employeeId": employee_id,
+                    "employee_id": employee_id,
+                    "employeeName": leave_doc.get("employeeName", "Employee"),
+                    "name": leave_doc.get("employeeName", "Employee"),
+                    "department": leave_doc.get("department", "General"),
+                    "date": attendance_date,
+                    "status": "Half Day Leave" if half_day else "On Leave",
+                    "halfDayLeave": half_day,
+                    "leavePeriod": leave_doc.get("halfDayPeriod") if half_day else None,
+                    "notes": f"Approved {leave_doc.get('leaveType', 'Leave')}",
+                }
+                if half_day:
+                    leave_attendance["targetHoursPerDay"] = half_day_hours
                 attendance_collection.update_one(
                     {
                         "$or": [
-                            {"employeeId": leave_doc.get("employeeId")},
-                            {"employee_id": leave_doc.get("employeeId")},
+                            {"employeeId": employee_id},
+                            {"employee_id": employee_id},
                         ],
-                        "date": date_str,
+                        "date": attendance_date,
                     },
-                    {
-                        "$set": {
-                            "status": "On Leave",
-                            "notes": f"Approved {leave_doc.get('leaveType', 'Leave')}",
-                        }
-                    },
-                    upsert=False
+                    {"$set": leave_attendance},
+                    upsert=half_day,
                 )
 
         return {

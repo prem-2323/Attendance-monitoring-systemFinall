@@ -5,7 +5,10 @@ import os
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, ASCENDING
 from backend.config import MONGODB_URI, DATABASE_NAME, ENVIRONMENT
-from backend.services.timezone import INDIA_TZ, migrate_datetime_fields_to_ist_strings
+from backend.services.timezone import (
+    INDIA_TZ,
+    migrate_datetime_fields_to_ist_strings as convert_datetime_fields_to_ist_strings,
+)
 
 client = None
 db     = None
@@ -87,7 +90,7 @@ def migrate_datetime_fields_to_ist_strings():
     for collection, fields in collections_and_fields:
         if collection is None:
             continue
-        migrated += migrate_datetime_fields_to_ist_strings(collection, fields)
+        migrated += convert_datetime_fields_to_ist_strings(collection, fields)
     if migrated:
         print(f"[DB] Converted {migrated} legacy timestamp fields to IST strings.")
 
