@@ -187,6 +187,11 @@ VITE_OFFICE_GEOFENCE_POLYGON=...
 
 The live values in MongoDB / Admin Settings override these at runtime.
 
+The office geofence radius can be configured in **Admin Settings → Office
+Location**, from 20 m up to **100,000 m (100 km)**. Set the smallest radius
+that reliably covers the workplace; larger radii allow attendance marking
+farther from the configured coordinates.
+
 ---
 
 ## 5. CORS checklist

@@ -45,7 +45,7 @@ class LocationItem(BaseModel):
     address: Optional[str] = "Office Campus Premises"
     lat: float = 11.270377
     lng: float = 77.603522
-    allowedRadiusMeters: int = 1000
+    allowedRadiusMeters: int = Field(1000, ge=20, le=100000)
     geofencePolygon: Optional[List[Dict[str, float]]] = None
     isActive: Optional[bool] = True
 
@@ -61,7 +61,7 @@ class OfficeSettingsUpdateRequest(BaseModel):
     address: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
-    allowedRadiusMeters: Optional[int] = None
+    allowedRadiusMeters: Optional[int] = Field(None, ge=20, le=100000)
     geofencePolygon: Optional[List[Dict[str, float]]] = None
     inTime: Optional[str] = None
     outTime: Optional[str] = None

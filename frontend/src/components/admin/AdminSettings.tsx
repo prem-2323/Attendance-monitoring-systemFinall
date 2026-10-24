@@ -623,7 +623,7 @@ export const AdminSettings: React.FC = () => {
                   <input
                     type="number"
                     min={20}
-                    max={5000}
+                    max={100000}
                     step={10}
                     value={curLoc.allowedRadiusMeters ?? 1000}
                     onChange={(e) => updateCurLoc('allowedRadiusMeters', Number(e.target.value))}
@@ -676,7 +676,7 @@ export const AdminSettings: React.FC = () => {
             </div>
 
             <div className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
-              Employees can mark attendance within <strong>{curLoc.allowedRadiusMeters ?? 1000} meters</strong> of these coordinates.
+              Employees can mark attendance within <strong>{curLoc.allowedRadiusMeters ?? 1000} meters</strong> of these coordinates (maximum 100,000 m).
             </div>
           </div>
 
