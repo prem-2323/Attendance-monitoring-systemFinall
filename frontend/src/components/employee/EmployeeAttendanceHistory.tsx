@@ -15,6 +15,7 @@ import { AttendanceRecord, AttendanceStatus } from '../../types';
 import { Skeleton } from '../common/Skeleton';
 import { employeeApi } from '../../services/employeeApi';
 import { formatIndiaClock, formatIndiaDate, getIndiaDateString } from '../../utils/dateTime';
+import { downloadCsv } from '../../utils/csv';
 
 export const EmployeeAttendanceHistory: React.FC = () => {
   const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
@@ -94,8 +95,11 @@ export const EmployeeAttendanceHistory: React.FC = () => {
 
   const allRecords = liveRecords !== null ? liveRecords : fallbackRecords;
 
+  const selectedMonthPrefix = availableMonths.find((month) => month.label === selectedMonth)?.prefix || '';
   const filteredRecords = allRecords.filter((rec) => {
-    return statusFilter === 'All' || rec.status === statusFilter;
+    const matchesStatus = statusFilter === 'All' || rec.status === statusFilter;
+    const matchesMonth = !selectedMonthPrefix || rec.date.startsWith(selectedMonthPrefix);
+    return matchesStatus && matchesMonth;
   });
 
   // Calculate statistics: flexible shift counts as present; in-progress never absent.
@@ -139,20 +143,15 @@ export const EmployeeAttendanceHistory: React.FC = () => {
   const handleExportCSV = () => {
     const headers = ['Date', 'Check-in', 'Check-out', 'Hours', 'Status', 'Verification'];
     const rows = filteredRecords.map((r) => [
-      r.date,
+      r.date || '',
       formatIndiaClock(r.checkIn) || '--',
       formatIndiaClock(r.checkOut) || '--',
       r.hoursWorked || '--',
       r.status,
-      `"${r.notes || 'Face + Office GPS Verified'}"`,
+      r.notes || 'Face + Office GPS Verified',
     ]);
-    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const link = document.createElement('a');
-    link.href = encodeURI(csv);
-    link.download = `My_Attendance_${currentUser?.employeeId || empId}_${selectedMonth.replace(' ', '_')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const monthFileName = selectedMonthPrefix || 'all_records';
+    downloadCsv(`My_Attendance_${currentUser?.employeeId || empId}_${monthFileName}.csv`, headers, rows);
   };
 
   return (
@@ -190,7 +189,8 @@ export const EmployeeAttendanceHistory: React.FC = () => {
           </select>
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer transition-colors"
+            disabled={isLoading || filteredRecords.length === 0}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5 text-slate-500" />
             <span>Export CSV</span>
@@ -277,9 +277,12 @@ export const EmployeeAttendanceHistory: React.FC = () => {
               <option value="All">All Statuses</option>
               <option value="Present">Present</option>
               <option value="Present — Flexible Shift">Present — Flexible Shift</option>
+              <option value="Present — Half Day Leave">Present — Half Day Leave</option>
               <option value="In Progress">In Progress</option>
+              <option value="Working">Working</option>
               <option value="Late">Late</option>
               <option value="On Leave">Leave</option>
+              <option value="Half Day Leave">Half Day Leave</option>
               <option value="Absent">Absent</option>
             </select>
           </div>

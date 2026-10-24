@@ -22,6 +22,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
 import { formatIndiaClock, formatIndiaDate, getIndiaDateOffsetString, getIndiaDateString } from '../../utils/dateTime';
+import { downloadCsv } from '../../utils/csv';
 import {
   Skeleton,
   SkeletonStatCard,
@@ -145,27 +146,23 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
   const handleExportCSV = () => {
     const headers = ['Record ID', 'Date', 'Employee ID', 'Name', 'Department', 'Check-In', 'Check-Out', 'Hours Worked', 'Status', 'Verification', 'Location Distance'];
     const rows = filteredList.map((r) => [
-      r.id,
-      r.date,
-      r.employeeId,
-      `"${r.employeeName}"`,
-      `"${r.department}"`,
+      r.id || '',
+      r.date || '',
+      r.employeeId || '',
+      r.employeeName || '',
+      r.department || '',
       formatIndiaClock(r.checkIn) || '--',
       formatIndiaClock(r.checkOut) || '--',
       r.hoursWorked || '--',
       r.status,
-      r.verifiedBy,
-      `"${r.distanceMeters}m"`,
+      r.verifiedBy || '',
+      r.distanceMeters != null ? `${r.distanceMeters}m` : '',
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Attendance_${viewMode}_${getIndiaDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const dateSuffix = viewMode === 'history' && datePreset === 'custom'
+      ? `${fromDate || 'start'}_to_${toDate || 'end'}`
+      : getIndiaDateString();
+    downloadCsv(`Attendance_${viewMode}_${dateSuffix}.csv`, headers, rows);
   };
 
   const handleApplyOverride = async (e: React.FormEvent) => {
@@ -256,7 +253,8 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
 
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer"
+            disabled={isLoading || filteredList.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             title="Export Records to CSV"
           >
             <Download className="h-3.5 w-3.5" />

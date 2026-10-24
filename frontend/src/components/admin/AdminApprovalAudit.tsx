@@ -14,6 +14,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getIndiaDateString } from '../../utils/dateTime';
 import { Skeleton } from '../common/Skeleton';
+import { downloadCsv } from '../../utils/csv';
 
 export const AdminApprovalAudit: React.FC = () => {
   const { approvalAudits, refreshApprovalAudits } = useApp();
@@ -36,10 +37,17 @@ export const AdminApprovalAudit: React.FC = () => {
   };
 
   const filteredAudits = approvalAudits.filter((audit) => {
-    const matchesSearch =
-      audit.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      audit.managerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      audit.reason.toLowerCase().includes(searchTerm.toLowerCase());
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch = [
+      audit.employeeName,
+      audit.employeeId,
+      audit.requestType,
+      audit.managerName,
+      audit.reason,
+      audit.remarks,
+      audit.decision,
+      audit.date,
+    ].some((value) => value?.toLowerCase().includes(normalizedSearch));
     const matchesDecision = decisionFilter === 'All' || audit.decision === decisionFilter;
     return matchesSearch && matchesDecision;
   });
@@ -47,25 +55,18 @@ export const AdminApprovalAudit: React.FC = () => {
   const exportAuditLogCSV = () => {
     const headers = ['Audit ID', 'Employee', 'Request Type', 'Decision', 'Manager', 'Date', 'Time', 'Employee Reason', 'Manager Remarks'];
     const rows = filteredAudits.map((a) => [
-      a.id,
-      `"${a.employeeName} (${a.employeeId})"`,
-      `"${a.requestType}"`,
-      a.decision,
-      `"${a.managerName}"`,
-      a.date,
-      a.time,
-      `"${a.reason}"`,
-      `"${a.remarks || ''}"`,
+      a.id || '',
+      `${a.employeeName || ''}${a.employeeId ? ` (${a.employeeId})` : ''}`,
+      a.requestType || '',
+      a.decision || '',
+      a.managerName || '',
+      a.date || '',
+      a.time || '',
+      a.reason || '',
+      a.remarks || '',
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Approval_Audit_Log_${getIndiaDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(`Approval_Audit_Log_${getIndiaDateString()}.csv`, headers, rows);
   };
 
   return (
@@ -92,7 +93,8 @@ export const AdminApprovalAudit: React.FC = () => {
           </button>
           <button
             onClick={exportAuditLogCSV}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+            disabled={isLoading || filteredAudits.length === 0}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Export Audit Log (CSV)</span>

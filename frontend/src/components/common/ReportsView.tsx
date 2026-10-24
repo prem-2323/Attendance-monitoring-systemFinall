@@ -18,6 +18,7 @@ import { Skeleton, SkeletonTable } from './Skeleton';
 import { reportsApi, ReportAggregates } from '../../services/reportsApi';
 import { AttendanceRecord } from '../../types';
 import { formatIndiaClock, getIndiaDateString } from '../../utils/dateTime';
+import { downloadCsv } from '../../utils/csv';
 
 export const ReportsView: React.FC = () => {
   const { allAttendance, users, officeLocation, refreshAttendance, refreshUsers } = useApp();
@@ -120,25 +121,19 @@ export const ReportsView: React.FC = () => {
   const exportExcelCSV = () => {
     const headers = ['Record ID', 'Date', 'Employee ID', 'Name', 'Department', 'Check-In', 'Check-Out', 'Hours', 'Status', 'Verification'];
     const rows = reportRecords.map((r) => [
-      r.id,
-      r.date,
-      r.employeeId,
-      `"${r.employeeName}"`,
-      `"${r.department}"`,
+      r.id || '',
+      r.date || '',
+      r.employeeId || '',
+      r.employeeName || '',
+      r.department || '',
       formatIndiaClock(r.checkIn),
       formatIndiaClock(r.checkOut),
       r.hoursWorked || '',
       r.status,
-      `"${r.locationName} (${r.distanceMeters}m)"`,
+      `${r.locationName || ''}${r.distanceMeters != null ? ` (${r.distanceMeters}m)` : ''}`,
     ]);
 
-    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const link = document.createElement('a');
-    link.href = encodeURI(csv);
-    link.download = `Attendance_Report_${fromDate}_to_${toDate}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(`Attendance_Report_${fromDate || 'all'}_to_${toDate || 'all'}.csv`, headers, rows);
   };
 
   const handlePrint = () => {
@@ -169,10 +164,11 @@ export const ReportsView: React.FC = () => {
           </button>
           <button
             onClick={exportExcelCSV}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer transition-colors"
+            disabled={isLoading || reportRecords.length === 0}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5 text-slate-500" />
-            <span>Export Excel / CSV</span>
+            <span>Export CSV</span>
           </button>
           <button
             onClick={handlePrint}
