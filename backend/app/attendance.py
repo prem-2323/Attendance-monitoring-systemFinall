@@ -23,7 +23,7 @@ from backend.database import (
     email_notifications_collection,
 )
 from backend.app.email_service import queue_attendance_emails, process_pending_emails
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, india_timestamp
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 class CheckInRequest(BaseModel):
@@ -103,7 +103,7 @@ def check_in(payload: CheckInRequest):
                         "status": "present",
                         "check_in": now.isoformat(),
                         "checkIn": now.strftime("%I:%M %p"),
-                        "updated_at": now,
+                        "updated_at": india_timestamp(now),
                     }
                 },
             )
@@ -143,7 +143,7 @@ def check_in(payload: CheckInRequest):
         "checkIn": now.strftime("%I:%M %p"),
         "check_in": now.isoformat(),
         "verifiedBy": "Check-In API",
-        "created_at": now,
+        "created_at": india_timestamp(now),
     }
 
     attendance_collection.insert_one(att_doc)

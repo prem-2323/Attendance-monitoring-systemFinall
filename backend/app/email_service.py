@@ -9,7 +9,7 @@ from datetime import datetime, date, time
 from email.message import EmailMessage
 from typing import Optional, Dict, Any
 from pymongo.errors import DuplicateKeyError
-from backend.services.timezone import INDIA_TZ, india_now
+from backend.services.timezone import INDIA_TZ, india_timestamp
 
 from backend.database import (
     users_collection,
@@ -306,7 +306,7 @@ def queue_attendance_emails(
             "status": "pending",
             "attempts": 0,
             "last_error": None,
-            "created_at": india_now(),
+            "created_at": india_timestamp(),
             "sent_at": None,
         }
 
@@ -426,7 +426,7 @@ def queue_checkout_summary_email(
         "status": "pending",
         "attempts": 0,
         "last_error": None,
-        "created_at": india_now(),
+        "created_at": india_timestamp(),
         "sent_at": None,
     }
     try:
@@ -488,7 +488,7 @@ def process_pending_emails(limit: int = 50, event_key: Optional[str] = None) -> 
                 {
                     "$set": {
                         "status": "sent",
-                        "sent_at": india_now(),
+                        "sent_at": india_timestamp(),
                         "last_error": None,
                     }
                 },

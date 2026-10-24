@@ -36,7 +36,7 @@ from backend.models.admin import (
     OfficeLocationsUpdateRequest,
     LocationItem,
 )
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, india_timestamp
 
 logger = logging.getLogger("admin_routes")
 router = APIRouter(tags=["Admin"])
@@ -259,7 +259,7 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             "faceRegistered": has_face,
             "faceVector": f"VEC-128-{payload.employeeId.strip()}" if has_face else None,
             "joinDate": now.strftime("%Y-%m-%d"),
-            "created_at": now,
+            "created_at": india_timestamp(now),
             "active": True,
             "title": f"Staff {payload.department}",
             "password_hash": default_pw,
@@ -272,7 +272,7 @@ async def create_employee(payload: AddEmployeeAdminRequest):
             emp_sync = {
                 "employee_id": payload.employeeId.strip(),
                 "name": payload.name.strip(),
-                "created_at": india_now(),
+                "created_at": india_timestamp(),
             }
             if face_embedding is not None:
                 emp_sync["face_embedding"] = face_embedding
@@ -376,7 +376,7 @@ async def create_manager(payload: AddManagerAdminRequest):
             "avatarUrl": payload.avatarUrl or "",
             "faceRegistered": payload.faceRegistered if payload.faceRegistered is not None else True,
             "joinDate": now.strftime("%Y-%m-%d"),
-            "created_at": now,
+            "created_at": india_timestamp(now),
             "active": True,
             "password_hash": default_pw,
         }

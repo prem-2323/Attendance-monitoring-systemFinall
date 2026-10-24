@@ -12,7 +12,7 @@ from backend.models.employee import EmployeeResponse
 from backend.services.face_detector import decode_image, detect_faces
 from backend.services.face_landmark import align_face
 from backend.services import face_recognition as fr_service
-from backend.services.timezone import india_now
+from backend.services.timezone import india_timestamp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/employee", tags=["Employee"])
@@ -75,7 +75,7 @@ async def register_employee(
         "employee_id": employee_id,
         "name": name.strip(),
         "face_embedding": embedding.tolist(),
-        "created_at": india_now(),
+        "created_at": india_timestamp(),
     }
 
     try:
@@ -93,7 +93,7 @@ async def register_employee(
             "message": f"Employee '{name}' registered successfully.",
             "employee_id": employee_id,
             "name": name.strip(),
-            "created_at": doc["created_at"].isoformat(),
+            "created_at": doc["created_at"],
         },
     )
 

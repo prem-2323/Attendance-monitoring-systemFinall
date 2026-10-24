@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatIndiaClock } from '../../utils/dateTime';
 import {
   Skeleton,
   SkeletonStatsGrid,
@@ -91,8 +92,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const lateCount = allMyRecords.filter((a) => a.status === 'Late').length;
   const attendanceRate = liveDashboard?.attendanceRate ?? (allMyRecords.length > 0 ? (Math.round(((presentCount + lateCount + inProgressCount) / totalDays) * 1000) / 10) : 0);
 
-  const checkInTime = todayRecord?.checkIn || '--';
-  const checkOutTime = todayRecord?.checkOut || '--';
+  const checkInTime = formatIndiaClock(todayRecord?.checkIn) || '--';
+  const checkOutTime = formatIndiaClock(todayRecord?.checkOut) || '--';
   const hoursWorked = todayRecord?.hoursWorked || (liveSmartHours?.workedTime && checkInTime !== '--' ? liveSmartHours.workedTime : '--');
   const remainingTime = liveSmartHours?.remainingTime || (checkInTime !== '--' ? 'Pending' : '--');
   const liveShiftConfig = liveSmartHours?.smartConfig || smartHoursConfig;

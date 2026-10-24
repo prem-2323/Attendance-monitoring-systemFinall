@@ -6,6 +6,7 @@ python-multipart==0.0.9
 # ── Database ─────────────────────────────────────────────────────────────────
 pymongo==4.8.0
 dnspython==2.9.0
+tzdata==2026.5
 # Development-only fallback; production (ENVIRONMENT=production) fails fast.
 mongomock==4.3.0
 

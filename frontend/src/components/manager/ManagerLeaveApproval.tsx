@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatIndiaClock } from '../../utils/dateTime';
 import { LeaveRequest, AttendanceRecord } from '../../types';
 import { Skeleton } from '../common/Skeleton';
 import { managerApi, EmployeeAttendanceAnalysis } from '../../services/managerApi';
@@ -474,10 +475,10 @@ export const ManagerLeaveApproval: React.FC = () => {
                             <tr key={h.id} className="hover:bg-slate-50/70">
                               <td className="px-4 py-2.5 font-medium text-slate-900">{h.date}</td>
                               <td className="px-4 py-2.5 text-slate-700">
-                                {h.checkIn || '—'}
+                                {formatIndiaClock(h.checkIn) || '—'}
                               </td>
                               <td className="px-4 py-2.5 text-slate-700">
-                                {h.checkOut || '—'}
+                                {formatIndiaClock(h.checkOut) || '—'}
                               </td>
                               <td className="px-4 py-2.5 font-semibold text-slate-900">
                                 {h.hoursWorked || '—'}

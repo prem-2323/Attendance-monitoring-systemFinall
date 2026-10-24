@@ -16,7 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { formatIndiaDate } from '../../utils/dateTime';
+import { formatIndiaClock, formatIndiaDate } from '../../utils/dateTime';
 import {
   Skeleton,
   SkeletonStatsGrid,
@@ -416,7 +416,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                         {act.activity}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{act.time}</td>
+                    <td className="px-6 py-4 text-slate-600">{formatIndiaClock(act.time) || act.time}</td>
                     <td className="px-6 py-4 text-right">
                       <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
                         <Check className="h-3 w-3" />

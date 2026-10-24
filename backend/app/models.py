@@ -3,9 +3,8 @@ Pydantic Models and MongoDB Document Schemas.
 Operates exclusively with MongoDB Atlas.
 """
 from typing import Optional, Union, Dict, Any
-from datetime import datetime, date
 from pydantic import BaseModel, Field
-from backend.services.timezone import india_now
+from backend.services.timezone import india_timestamp
 
 
 class CheckInRequest(BaseModel):
@@ -21,8 +20,8 @@ class EmailNotificationDoc(BaseModel):
     status: str = "pending"  # pending, sending, sent, failed
     attempts: int = 0
     last_error: Optional[str] = None
-    created_at: datetime = Field(default_factory=india_now)
-    sent_at: Optional[datetime] = None
+    created_at: str = Field(default_factory=india_timestamp)
+    sent_at: Optional[str] = None
 
 
 class AttendanceRecordDoc(BaseModel):
@@ -32,4 +31,4 @@ class AttendanceRecordDoc(BaseModel):
     date: str
     status: str
     check_in: Optional[str] = None
-    created_at: datetime = Field(default_factory=india_now)
+    created_at: str = Field(default_factory=india_timestamp)

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
-import { formatIndiaDate, getIndiaDateOffsetString, getIndiaDateString } from '../../utils/dateTime';
+import { formatIndiaClock, formatIndiaDate, getIndiaDateOffsetString, getIndiaDateString } from '../../utils/dateTime';
 import {
   Skeleton,
   SkeletonStatCard,
@@ -142,8 +142,8 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
       r.employeeId,
       `"${r.employeeName}"`,
       `"${r.department}"`,
-      r.checkIn || '--',
-      r.checkOut || '--',
+      formatIndiaClock(r.checkIn) || '--',
+      formatIndiaClock(r.checkOut) || '--',
       r.hoursWorked || '--',
       r.status,
       r.verifiedBy,
@@ -521,10 +521,10 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-slate-800 font-medium">
-                      {rec.checkIn || <span className="text-slate-300">--</span>}
+                      {formatIndiaClock(rec.checkIn) || <span className="text-slate-300">--</span>}
                     </td>
                     <td className="px-5 py-3.5 text-slate-800 font-medium">
-                      {rec.checkOut || <span className="text-slate-300">--</span>}
+                      {formatIndiaClock(rec.checkOut) || <span className="text-slate-300">--</span>}
                     </td>
                     <td className="px-5 py-3.5 font-bold text-slate-900">
                       {rec.hoursWorked || <span className="text-slate-300">--</span>}
@@ -608,7 +608,7 @@ export const AdminAttendance: React.FC<AdminAttendanceProps> = ({ initialMode = 
                 <div className="flex justify-between">
                   <span className="text-slate-500">Recorded Timestamps:</span>
                   <span className="font-medium text-slate-900">
-                    Check-in: {inspectRecord.checkIn || '--'} | Check-out: {inspectRecord.checkOut || '--'}
+                    Check-in: {formatIndiaClock(inspectRecord.checkIn) || '--'} | Check-out: {formatIndiaClock(inspectRecord.checkOut) || '--'}
                   </span>
                 </div>
                 <div className="flex justify-between">

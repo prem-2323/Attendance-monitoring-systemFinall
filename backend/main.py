@@ -33,12 +33,15 @@ from backend.routes import employee_portal as employee_portal_router
 from backend.routes import manager as manager_router
 from backend.routes import reports as reports_router
 from backend.app.attendance import router as app_attendance_router
+from backend.services.timezone import IndiaTimeFormatter
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+for handler in logging.getLogger().handlers:
+    handler.setFormatter(IndiaTimeFormatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 logger = logging.getLogger(__name__)
 
 # ── Lifespan for Background Absence Scheduler ─────────────────────────────────
@@ -281,4 +284,3 @@ async def api_info():
             "face_registration": "/employee/register",
         },
     }
-

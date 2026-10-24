@@ -102,10 +102,13 @@ Set these environment variables in **Environment**:
 
 Do **not** set `PORT`; Render provides it automatically.
 
-The application uses `Asia/Kolkata` for attendance dates, timestamps, and
-display. No timezone environment variable is needed. MongoDB BSON date fields
-represent instants in UTC internally; the backend decodes and returns them in
-Indian Standard Time, while attendance calendar dates are stored as IST dates.
+The application uses `Asia/Kolkata` for attendance dates, timestamps, logs,
+and display. No timezone environment variable is needed. Application audit
+timestamps are stored as ISO-8601 strings with an explicit `+05:30` offset so
+they display as Indian Standard Time in MongoDB tools. Existing BSON date
+values in supported timestamp fields are converted to this format on startup.
+MongoDB `Date` values themselves are always UTC instants and cannot be stored
+with a physical timezone.
 
 ### Why `build.sh`?
 

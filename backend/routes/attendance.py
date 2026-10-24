@@ -15,7 +15,7 @@ from backend.services import face_recognition as fr_service
 from backend.services.attendance_service import build_approval_doc, build_attendance_doc
 from backend.services.face_detector import decode_image, detect_faces
 from backend.services.face_landmark import align_face
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, india_timestamp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -280,7 +280,7 @@ async def process_approval(attendance_id: str, action: ApprovalAction):
                 "status": new_status,
                 "approved_by": action.manager_id,
                 "reason": action.reason,
-                "updated_at": india_now(),
+                "updated_at": india_timestamp(),
             }
         },
     )

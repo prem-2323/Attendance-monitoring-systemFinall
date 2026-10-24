@@ -13,11 +13,11 @@ export function getIndiaDateString(date: Date = new Date()): string {
 
 export function getIndiaDateOffsetString(offsetDays: number): string {
   const [year, month, day] = getIndiaDateString().split('-').map(Number);
-  const shifted = new Date(year, month - 1, day + offsetDays);
+  const shifted = new Date(Date.UTC(year, month - 1, day + offsetDays));
   return [
-    shifted.getFullYear(),
-    String(shifted.getMonth() + 1).padStart(2, '0'),
-    String(shifted.getDate()).padStart(2, '0'),
+    shifted.getUTCFullYear(),
+    String(shifted.getUTCMonth() + 1).padStart(2, '0'),
+    String(shifted.getUTCDate()).padStart(2, '0'),
   ].join('-');
 }
 
@@ -33,4 +33,11 @@ export function formatIndiaDate(
 
 export function formatIndiaTime(date: Date, options: Intl.DateTimeFormatOptions): string {
   return formatIndiaDate(date, options);
+}
+
+export function formatIndiaClock(value?: string | null): string {
+  if (!value || !value.includes('T')) return value || '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return formatIndiaTime(date, { hour: '2-digit', minute: '2-digit' });
 }

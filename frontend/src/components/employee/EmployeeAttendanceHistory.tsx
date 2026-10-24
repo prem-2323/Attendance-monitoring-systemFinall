@@ -14,7 +14,7 @@ import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, AttendanceStatus } from '../../types';
 import { Skeleton } from '../common/Skeleton';
 import { employeeApi } from '../../services/employeeApi';
-import { formatIndiaDate, getIndiaDateString } from '../../utils/dateTime';
+import { formatIndiaClock, formatIndiaDate, getIndiaDateString } from '../../utils/dateTime';
 
 export const EmployeeAttendanceHistory: React.FC = () => {
   const { currentUser, todayAttendance, historicalAttendance, refreshAttendance } = useApp();
@@ -136,8 +136,8 @@ export const EmployeeAttendanceHistory: React.FC = () => {
     const headers = ['Date', 'Check-in', 'Check-out', 'Hours', 'Status', 'Verification'];
     const rows = filteredRecords.map((r) => [
       r.date,
-      r.checkIn || '--',
-      r.checkOut || '--',
+      formatIndiaClock(r.checkIn) || '--',
+      formatIndiaClock(r.checkOut) || '--',
       r.hoursWorked || '--',
       r.status,
       `"${r.notes || 'Face + Office GPS Verified'}"`,
@@ -319,10 +319,10 @@ export const EmployeeAttendanceHistory: React.FC = () => {
                       {item.date}
                     </td>
                     <td className="px-6 py-4 text-slate-700">
-                      {item.checkIn || <span className="text-slate-300">--</span>}
+                      {formatIndiaClock(item.checkIn) || <span className="text-slate-300">--</span>}
                     </td>
                     <td className="px-6 py-4 text-slate-700">
-                      {item.checkOut || <span className="text-slate-300">--</span>}
+                      {formatIndiaClock(item.checkOut) || <span className="text-slate-300">--</span>}
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-900">
                       {item.hoursWorked || <span className="text-slate-300">--</span>}

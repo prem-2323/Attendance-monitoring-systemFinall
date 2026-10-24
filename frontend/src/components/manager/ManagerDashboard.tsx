@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { formatIndiaClock } from '../../utils/dateTime';
 import { Skeleton, SkeletonStatsGrid, SkeletonTable } from '../common/Skeleton';
 import { managerApi, ManagerDashboardData } from '../../services/managerApi';
 
@@ -226,10 +227,10 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigate }
                           </div>
                         </td>
                         <td className="px-6 py-4 text-slate-700">
-                          {rec.checkIn || <span className="text-slate-300">—</span>}
+                          {formatIndiaClock(rec.checkIn) || <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-slate-700">
-                          {rec.checkOut || <span className="text-slate-300">—</span>}
+                          {formatIndiaClock(rec.checkOut) || <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 font-semibold text-slate-900">
                           {rec.hoursWorked || <span className="text-slate-300">—</span>}

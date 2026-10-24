@@ -17,7 +17,7 @@ import { useApp } from '../../context/AppContext';
 import { Skeleton, SkeletonTable } from './Skeleton';
 import { reportsApi, ReportAggregates } from '../../services/reportsApi';
 import { AttendanceRecord } from '../../types';
-import { getIndiaDateString } from '../../utils/dateTime';
+import { formatIndiaClock, getIndiaDateString } from '../../utils/dateTime';
 
 export const ReportsView: React.FC = () => {
   const { allAttendance, users, officeLocation, refreshAttendance, refreshUsers } = useApp();
@@ -125,8 +125,8 @@ export const ReportsView: React.FC = () => {
       r.employeeId,
       `"${r.employeeName}"`,
       `"${r.department}"`,
-      r.checkIn || '',
-      r.checkOut || '',
+      formatIndiaClock(r.checkIn),
+      formatIndiaClock(r.checkOut),
       r.hoursWorked || '',
       r.status,
       `"${r.locationName} (${r.distanceMeters}m)"`,
@@ -395,8 +395,8 @@ export const ReportsView: React.FC = () => {
                           <div className="font-semibold text-slate-900">{r.employeeName}</div>
                           <div className="text-[11px] text-slate-400 font-normal">{r.employeeId} · {r.department}</div>
                         </td>
-                        <td className="px-6 py-4 text-slate-700">{r.checkIn || '—'}</td>
-                        <td className="px-6 py-4 text-slate-700">{r.checkOut || '—'}</td>
+                        <td className="px-6 py-4 text-slate-700">{formatIndiaClock(r.checkIn) || '—'}</td>
+                        <td className="px-6 py-4 text-slate-700">{formatIndiaClock(r.checkOut) || '—'}</td>
                         <td className="px-6 py-4 font-semibold text-slate-900">{r.hoursWorked || '—'}</td>
                         <td className="px-6 py-4">
                           <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-800">

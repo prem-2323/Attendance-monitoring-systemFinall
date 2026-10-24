@@ -5,7 +5,7 @@ import os
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, ASCENDING
 from backend.config import MONGODB_URI, DATABASE_NAME, ENVIRONMENT
-from backend.services.timezone import INDIA_TZ
+from backend.services.timezone import INDIA_TZ, migrate_datetime_fields_to_ist_strings
 
 client = None
 db     = None
@@ -69,6 +69,31 @@ settings_collection        = db["settings"]         if db is not None else None
 approval_audits_collection     = db["approval_audits"]      if db is not None else None
 leave_requests_collection      = db["leave_requests"]       if db is not None else None
 email_notifications_collection = db["email_notifications"]  if db is not None else None
+
+
+def migrate_datetime_fields_to_ist_strings():
+    """Convert legacy BSON dates to explicit +05:30 ISO strings."""
+    collections_and_fields = (
+        (employees_collection, ("created_at",)),
+        (attendance_collection, ("created_at", "updated_at")),
+        (approval_collection, ("created_at", "updated_at")),
+        (users_collection, ("created_at", "updated_at")),
+        (reset_tokens_collection, ("created_at", "expires_at")),
+        (approval_audits_collection, ("created_at", "updated_at")),
+        (leave_requests_collection, ("created_at", "updated_at")),
+        (email_notifications_collection, ("created_at", "sent_at")),
+    )
+    migrated = 0
+    for collection, fields in collections_and_fields:
+        if collection is None:
+            continue
+        migrated += migrate_datetime_fields_to_ist_strings(collection, fields)
+    if migrated:
+        print(f"[DB] Converted {migrated} legacy timestamp fields to IST strings.")
+
+
+migrate_datetime_fields_to_ist_strings()
+
 
 def seed_initial_users():
     """No-op: Seed user data removed. All user accounts are created dynamically through live registration."""

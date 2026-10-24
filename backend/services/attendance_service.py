@@ -12,7 +12,7 @@ from backend.config import (
     LATE_THRESHOLD_MINUTES,
     FACE_MATCH_THRESHOLD,
 )
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, india_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -95,5 +95,5 @@ def build_approval_doc(attendance_id: str, employee_id: str) -> dict:
         "status": "Pending",
         "approved_by": None,
         "reason": None,
-        "created_at": india_now(),
+        "created_at": india_timestamp(),
     }

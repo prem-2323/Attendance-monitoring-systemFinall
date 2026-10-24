@@ -27,7 +27,7 @@ from backend.services.auth_service import (
     serialize_user,
 )
 from backend.services.face_detector import extract_face_embedding_from_b64
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, india_timestamp, parse_india_timestamp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
@@ -101,7 +101,7 @@ async def register_admin(payload: AdminRegisterRequest):
         "faceRegistered": False,
         "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": now,
+        "created_at": india_timestamp(now),
     }
 
     try:
@@ -182,7 +182,7 @@ async def register_manager(payload: ManagerRegisterRequest):
         "faceRegistered": False,
         "avatarUrl": payload.avatarUrl or "",
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": now,
+        "created_at": india_timestamp(now),
     }
 
     try:
@@ -304,7 +304,7 @@ async def register_employee(payload: EmployeeRegisterRequest):
         "avatarUrl": final_avatar,
         "avatar": final_avatar,
         "password_hash": hash_password(payload.password or "password123"),
-        "created_at": now,
+        "created_at": india_timestamp(now),
     }
     if face_embedding is not None:
         emp_doc["faceEmbedding"] = face_embedding
@@ -320,7 +320,7 @@ async def register_employee(payload: EmployeeRegisterRequest):
                 "name": payload.name.strip(),
                 "department": payload.department or "Engineering",
                 "email": email,
-                "created_at": now,
+                "created_at": india_timestamp(now),
             }
             if face_embedding is not None:
                 emp_sync["face_embedding"] = face_embedding
@@ -432,7 +432,8 @@ async def forgot_password_request(payload: ForgotPasswordRequest):
 
     # Generate OTP code (e.g. 8421 or random 4 digits)
     otp = generate_otp()
-    expires_at = india_now() + timedelta(minutes=15)
+    now = india_now()
+    expires_at = now + timedelta(minutes=15)
 
     reset_tokens_collection.update_one(
         {"identifier": user["email"]},
@@ -440,9 +441,9 @@ async def forgot_password_request(payload: ForgotPasswordRequest):
             "$set": {
                 "identifier": user["email"],
                 "code": otp,
-                "expires_at": expires_at,
+                "expires_at": india_timestamp(expires_at),
                 "used": False,
-                "created_at": india_now(),
+                "created_at": india_timestamp(now),
             }
         },
         upsert=True,
@@ -476,6 +477,14 @@ async def forgot_password_verify(payload: VerifyResetCodeRequest):
             detail="Invalid or expired verification code.",
         )
 
+    expires_at = token_doc.get("expires_at")
+    if expires_at and parse_india_timestamp(expires_at) <= india_now():
+        reset_tokens_collection.delete_one({"_id": token_doc["_id"]})
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code.",
+        )
+
     if token_doc.get("code") != payload.code.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -503,6 +512,14 @@ async def forgot_password_reset(payload: ResetPasswordRequest):
     })
 
     if not token_doc or token_doc.get("code") != payload.code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code. Please request a new OTP.",
+        )
+
+    expires_at = token_doc.get("expires_at")
+    if expires_at and parse_india_timestamp(expires_at) <= india_now():
+        reset_tokens_collection.delete_one({"_id": token_doc["_id"]})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code. Please request a new OTP.",

@@ -18,7 +18,7 @@ for _p in [str(_APP_DIR), str(_BACKEND_DIR), str(_ROOT_DIR)]:
 
 from backend.database import users_collection, attendance_collection
 from backend.app.email_service import queue_attendance_emails, process_pending_emails
-from backend.services.timezone import INDIA_TZ, india_now
+from backend.services.timezone import INDIA_TZ, india_now, india_timestamp
 
 if (_BACKEND_DIR / ".env").exists():
     load_dotenv(_BACKEND_DIR / ".env")
@@ -124,7 +124,7 @@ def mark_absent_employees(force: bool = False):
                 "status": "Absent",
                 "checkIn": None,
                 "check_in": None,
-                "created_at": now,
+                "created_at": india_timestamp(now),
             }
             try:
                 attendance_collection.insert_one(new_att)
