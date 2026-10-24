@@ -102,6 +102,19 @@ Set these environment variables in **Environment**:
 
 Do **not** set `PORT`; Render provides it automatically.
 
+### Optional bootstrap admin and manager accounts
+
+The database reset endpoint removes user records, and does not recreate users
+unless bootstrap variables are configured. To have the backend create missing
+admin/manager accounts on startup (including after a reset), set the relevant
+`BOOTSTRAP_ADMIN_*` and/or `BOOTSTRAP_MANAGER_*` values from
+`backend/.env.example` in Render's environment settings. `NAME`,
+`EMAIL`, and `PASSWORD` are required for each role; `EMPLOYEE_ID` defaults to
+the email, while phone and department are optional. Passwords are stored as
+salted hashes, and these values are only used to create an account when no
+matching email or employee ID exists. Never put production passwords in
+source control.
+
 The application uses `Asia/Kolkata` for attendance dates, timestamps, logs,
 and display. No timezone environment variable is needed. Application audit
 timestamps are stored as ISO-8601 strings with an explicit `+05:30` offset so
@@ -171,6 +184,12 @@ Expected health response:
    - Vite embeds this value at **build time**, so redeploy after changing it.
 
 4. Deploy.
+
+Vercel serves the HTML entry point without caching so a deployment cannot keep
+referencing old, hashed JavaScript bundles. Hashed files under `/assets/` are
+cached as immutable. If the app reports a module-script MIME error immediately
+after deployment, redeploy the frontend and do a hard refresh once to clear any
+HTML already cached by the browser.
 
 ### Vercel environment variables
 
