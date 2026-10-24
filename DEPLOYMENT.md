@@ -102,18 +102,18 @@ Set these environment variables in **Environment**:
 
 Do **not** set `PORT`; Render provides it automatically.
 
-### Optional bootstrap admin and manager accounts
+### Provision the initial admin and manager accounts
 
-The database reset endpoint removes user records, and does not recreate users
-unless bootstrap variables are configured. To have the backend create missing
-admin/manager accounts on startup (including after a reset), set the relevant
-`BOOTSTRAP_ADMIN_*` and/or `BOOTSTRAP_MANAGER_*` values from
-`backend/.env.example` in Render's environment settings. `NAME`,
-`EMAIL`, and `PASSWORD` are required for each role; `EMPLOYEE_ID` defaults to
-the email, while phone and department are optional. Passwords are stored as
-salted hashes, and these values are only used to create an account when no
-matching email or employee ID exists. Never put production passwords in
-source control.
+User credentials are not configured in Render environment variables or
+hardcoded in the application. To create/update the requested admin and manager
+records directly in MongoDB, run `python -m backend.seed_accounts` from the
+repository root in an environment with the production `MONGODB_URI` and
+`DATABASE_NAME` configured. The script prompts for each password without
+displaying it and stores only a salted password hash in the `users` collection.
+It updates matching accounts by email; it stops on conflicting account IDs.
+
+The login screen's quick-sign-in buttons only fill the email address. Users
+still enter their password; passwordless auto-login remains disabled.
 
 The application uses `Asia/Kolkata` for attendance dates, timestamps, logs,
 and display. No timezone environment variable is needed. Application audit

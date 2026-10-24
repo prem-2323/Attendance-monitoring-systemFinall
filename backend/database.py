@@ -100,78 +100,8 @@ migrate_datetime_fields_to_ist_strings()
 
 
 def seed_initial_users():
-    """Create configured bootstrap accounts only when they are missing."""
-    if users_collection is None:
-        return
-
-    from backend.services.auth_service import hash_password
-
-    account_configs = (
-        ("admin", "BOOTSTRAP_ADMIN"),
-        ("manager", "BOOTSTRAP_MANAGER"),
-    )
-    for role, prefix in account_configs:
-        account = {
-            "name": os.getenv(f"{prefix}_NAME", "").strip(),
-            "email": os.getenv(f"{prefix}_EMAIL", "").strip().lower(),
-            "password": os.getenv(f"{prefix}_PASSWORD", ""),
-            "phone": os.getenv(f"{prefix}_PHONE", "").strip(),
-            "department": os.getenv(
-                f"{prefix}_DEPARTMENT",
-                "System Administration" if role == "admin" else "Engineering",
-            ).strip(),
-        }
-        account["employeeId"] = (
-            os.getenv(f"{prefix}_EMPLOYEE_ID", "").strip() or account["email"]
-        )
-        if not any(
-            account[key]
-            for key in ("name", "employeeId", "email", "password", "phone")
-        ):
-            continue
-        if not all(account[key] for key in ("name", "email", "password")):
-            print(
-                f"[DB] Bootstrap {role} account skipped: set NAME, EMAIL, "
-                "and PASSWORD together."
-            )
-            continue
-
-        existing_by_email = users_collection.find_one({"email": account["email"]})
-        existing_by_id = users_collection.find_one({
-            "$or": [
-                {"employeeId": account["employeeId"]},
-                {"employee_id": account["employeeId"]},
-            ]
-        })
-        if existing_by_email or existing_by_id:
-            if (
-                existing_by_email
-                and existing_by_id
-                and str(existing_by_email.get("_id")) != str(existing_by_id.get("_id"))
-            ):
-                print(f"[DB] Bootstrap {role} account skipped: email/employee ID conflict.")
-            continue
-
-        now = india_now()
-        user_id = f"user-bootstrap-{role}"
-        users_collection.insert_one({
-            "id": user_id,
-            "name": account["name"],
-            "employeeId": account["employeeId"],
-            "employee_id": account["employeeId"],
-            "email": account["email"],
-            "phone": account["phone"],
-            "department": account["department"],
-            "role": role,
-            "title": "System Administrator" if role == "admin" else "Engineering Lead",
-            "active": True,
-            "joinDate": now.strftime("%Y-%m-%d"),
-            "faceRegistered": False,
-            "avatarUrl": "",
-            "password_hash": hash_password(account["password"]),
-            "created_at": now.isoformat(timespec="milliseconds"),
-        })
-        print(f"[DB] Configured bootstrap {role} account created.")
+    """Do not create user accounts automatically during application startup."""
+    return
 
 def seed_initial_settings():
     """Seed default geofence office box location and smart hours in MongoDB Atlas."""
