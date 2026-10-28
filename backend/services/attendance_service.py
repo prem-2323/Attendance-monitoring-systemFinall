@@ -69,7 +69,7 @@ def build_attendance_doc(
         now = india_now()
 
     date_str = now.strftime("%Y-%m-%d")
-    time_str = now.strftime("%H:%M:%S")
+    time_str = now.strftime("%I:%M %p")
     current_time = now.time()
 
     late = is_late(current_time)
@@ -77,9 +77,12 @@ def build_attendance_doc(
 
     return {
         "employee_id": employee_id,
+        "employeeId": employee_id,
         "name": name,
+        "employeeName": name,
         "date": date_str,
         "time": time_str,
+        "checkIn": time_str,
         "status": "Present",
         "approval_status": approval_status,
         "confidence": round(confidence, 4),

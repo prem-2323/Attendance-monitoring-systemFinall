@@ -17,20 +17,26 @@ from backend.database import (
     approval_audits_collection,
 )
 from backend.models.manager import ReviewLeavePayload
-from backend.services.timezone import india_now
+from backend.services.timezone import india_now, format_time_to_india_12h
 
 logger = logging.getLogger("manager_portal_routes")
 router = APIRouter(tags=["Manager Portal"])
 
 
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to sanitize MongoDB documents."""
+    """Helper to sanitize MongoDB documents and format times to 12h IST."""
     if not doc:
         return {}
     cleaned = dict(doc)
     if "_id" in cleaned:
         cleaned["_id"] = str(cleaned["_id"])
     cleaned.pop("password_hash", None)
+    if "checkIn" in cleaned and cleaned["checkIn"]:
+        cleaned["checkIn"] = format_time_to_india_12h(str(cleaned["checkIn"]))
+    if "checkOut" in cleaned and cleaned["checkOut"]:
+        cleaned["checkOut"] = format_time_to_india_12h(str(cleaned["checkOut"]))
+    if "time" in cleaned and cleaned["time"]:
+        cleaned["time"] = format_time_to_india_12h(str(cleaned["time"]))
     return cleaned
 
 

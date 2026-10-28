@@ -36,20 +36,35 @@ from backend.models.admin import (
     OfficeLocationsUpdateRequest,
     LocationItem,
 )
-from backend.services.timezone import india_now, india_timestamp
+from backend.services.timezone import (
+    india_now,
+    india_timestamp,
+    india_time_24h,
+    format_time_to_india_24h,
+    india_time_12h,
+    format_time_to_india_12h,
+)
 
 logger = logging.getLogger("admin_routes")
 router = APIRouter(tags=["Admin"])
 
 
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to sanitize MongoDB document for JSON responses."""
+    """Helper to sanitize MongoDB document for JSON responses and format times to 12h IST."""
     if not doc:
         return {}
     cleaned = dict(doc)
     if "_id" in cleaned:
         cleaned["_id"] = str(cleaned["_id"])
     cleaned.pop("password_hash", None)
+    if "checkIn" in cleaned and cleaned["checkIn"]:
+        cleaned["checkIn"] = format_time_to_india_12h(str(cleaned["checkIn"]))
+    if "checkOut" in cleaned and cleaned["checkOut"]:
+        cleaned["checkOut"] = format_time_to_india_12h(str(cleaned["checkOut"]))
+    if "expectedCheckout" in cleaned and cleaned["expectedCheckout"]:
+        cleaned["expectedCheckout"] = format_time_to_india_12h(str(cleaned["expectedCheckout"]))
+    if "time" in cleaned and cleaned["time"]:
+        cleaned["time"] = format_time_to_india_12h(str(cleaned["time"]))
     return cleaned
 
 
@@ -118,8 +133,8 @@ async def get_dashboard_stats():
                 emp_name = item.get("employeeName", "Staff")
                 emp_id = item.get("employeeId", "")
                 st = item.get("status", "Present")
-                check_in = item.get("checkIn")
-                check_out = item.get("checkOut")
+                check_in = format_time_to_india_12h(item.get("checkIn"))
+                check_out = format_time_to_india_12h(item.get("checkOut"))
 
                 if check_out:
                     recent_activities.append({
@@ -475,6 +490,8 @@ async def override_attendance(payload: AttendanceOverrideRequest):
         manager_name = emp.get("managerName", "System Administrator") if emp else "System Administrator"
 
         record_id = f"att-override-{payload.employeeId}-{payload.date.replace('-', '')}"
+        norm_in = format_time_to_india_12h(payload.checkIn) if payload.checkIn else "11:25 AM"
+        norm_out = format_time_to_india_12h(payload.checkOut) if payload.checkOut else "06:00 PM"
         updated_record = {
             "id": record_id,
             "employee_id": payload.employeeId,
@@ -483,8 +500,8 @@ async def override_attendance(payload: AttendanceOverrideRequest):
             "department": emp_dept,
             "date": payload.date,
             "status": payload.status,
-            "checkIn": payload.checkIn if payload.status in ["Present", "Working", "Late"] else None,
-            "checkOut": payload.checkOut if payload.status in ["Present", "Working"] else None,
+            "checkIn": norm_in if payload.status in ["Present", "Working", "Late"] else None,
+            "checkOut": norm_out if payload.status in ["Present", "Working"] else None,
             "hoursWorked": "8h 00m" if payload.status in ["Present", "Working"] else ("7h 15m" if payload.status == "Late" else "0h"),
             "verifiedBy": "Manual Override",
             "locationName": "Admin Regularized",

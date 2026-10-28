@@ -17,18 +17,26 @@ from backend.database import (
     users_collection,
 )
 
+from backend.services.timezone import format_time_to_india_12h
+
 logger = logging.getLogger("reports_routes")
 router = APIRouter(tags=["Reports & Analytics"])
 
 
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to sanitize MongoDB document for JSON responses."""
+    """Helper to sanitize MongoDB document for JSON responses and format times to 12h IST."""
     if not doc:
         return {}
     cleaned = dict(doc)
     if "_id" in cleaned:
         cleaned["_id"] = str(cleaned["_id"])
     cleaned.pop("password_hash", None)
+    if "checkIn" in cleaned and cleaned["checkIn"]:
+        cleaned["checkIn"] = format_time_to_india_12h(str(cleaned["checkIn"]))
+    if "checkOut" in cleaned and cleaned["checkOut"]:
+        cleaned["checkOut"] = format_time_to_india_12h(str(cleaned["checkOut"]))
+    if "time" in cleaned and cleaned["time"]:
+        cleaned["time"] = format_time_to_india_12h(str(cleaned["time"]))
     return cleaned
 
 

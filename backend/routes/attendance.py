@@ -15,7 +15,7 @@ from backend.services import face_recognition as fr_service
 from backend.services.attendance_service import build_approval_doc, build_attendance_doc
 from backend.services.face_detector import decode_image, detect_faces
 from backend.services.face_landmark import align_face
-from backend.services.timezone import india_now, india_timestamp
+from backend.services.timezone import india_now, india_timestamp, format_time_to_india_12h
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -28,9 +28,15 @@ def _oid(doc: dict) -> str:
 
 
 def _clean(doc: dict) -> dict:
-    """Remove MongoDB _id and convert ObjectId fields to strings."""
+    """Remove MongoDB _id, convert ObjectId fields to strings, and normalize times to 12h IST."""
     doc = dict(doc)
     doc.pop("_id", None)
+    if "checkIn" in doc and doc["checkIn"]:
+        doc["checkIn"] = format_time_to_india_12h(str(doc["checkIn"]))
+    if "checkOut" in doc and doc["checkOut"]:
+        doc["checkOut"] = format_time_to_india_12h(str(doc["checkOut"]))
+    if "time" in doc and doc["time"]:
+        doc["time"] = format_time_to_india_12h(str(doc["time"]))
     return doc
 
 

@@ -101,8 +101,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
   const requiredMinutes = Math.round(requiredHours * 60);
   const requiredDuration = `${Math.floor(requiredMinutes / 60)}h ${String(requiredMinutes % 60).padStart(2, '0')}m`;
   const expectedCheckout = checkInTime !== '--'
-    ? (liveSmartHours?.expectedCheckoutTime || liveShiftConfig.outTime || '--')
-    : (liveShiftConfig.outTime || '--');
+    ? (formatIndiaClock(liveSmartHours?.expectedCheckoutTime) || formatIndiaClock(liveShiftConfig.outTime) || '--')
+    : (formatIndiaClock(liveShiftConfig.outTime) || '--');
   const completionPercent = checkInTime !== '--' ? (liveSmartHours?.completionPercent || 0) : 0;
 
   return (

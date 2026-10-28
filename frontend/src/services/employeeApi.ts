@@ -16,6 +16,8 @@ export interface MarkAttendancePayload {
   /** Live GPS fix — server enforces the office geofence box from these. */
   latitude?: number | null;
   longitude?: number | null;
+  /** Current client 12-hour Indian Standard Time (e.g. '09:15 AM') */
+  clientTime?: string;
 }
 
 export interface ApplyLeavePayload {

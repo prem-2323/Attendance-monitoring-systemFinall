@@ -21,6 +21,8 @@ class MarkAttendanceRequest(BaseModel):
     # geofence BOX (point-in-polygon) instead of the legacy radius check.
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    # Optional client 12h Indian time (e.g. '09:15 AM')
+    clientTime: Optional[str] = None
 
 
 class ApplyLeaveRequest(BaseModel):

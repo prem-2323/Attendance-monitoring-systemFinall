@@ -29,7 +29,13 @@ from backend.models.employee_portal import (
     FaceDetectRequest,
 )
 from backend.services.face_detector import decode_image, detect_faces, crop_face
-from backend.services.timezone import india_now
+from backend.services.timezone import (
+    india_now,
+    india_time_24h,
+    format_time_to_india_24h,
+    india_time_12h,
+    format_time_to_india_12h,
+)
 
 logger = logging.getLogger("employee_portal_routes")
 router = APIRouter(tags=["Employee Portal"])
@@ -55,13 +61,22 @@ def _get_effective_smart_config(employee_id: str, attendance_date: str, base_con
 
 
 def _clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to sanitize MongoDB document for JSON responses."""
+    """Helper to sanitize MongoDB document for JSON responses and ensure 12h IST times."""
     if not doc:
         return {}
     cleaned = dict(doc)
     if "_id" in cleaned:
         cleaned["_id"] = str(cleaned["_id"])
     cleaned.pop("password_hash", None)
+    # Ensure checkIn, checkOut, and expectedCheckout always display in standard 12-hour Indian Time
+    if "checkIn" in cleaned and cleaned["checkIn"]:
+        cleaned["checkIn"] = format_time_to_india_12h(str(cleaned["checkIn"]))
+    if "checkOut" in cleaned and cleaned["checkOut"]:
+        cleaned["checkOut"] = format_time_to_india_12h(str(cleaned["checkOut"]))
+    if "expectedCheckout" in cleaned and cleaned["expectedCheckout"]:
+        cleaned["expectedCheckout"] = format_time_to_india_12h(str(cleaned["expectedCheckout"]))
+    if "time" in cleaned and cleaned["time"]:
+        cleaned["time"] = format_time_to_india_12h(str(cleaned["time"]))
     return cleaned
 
 
@@ -253,9 +268,13 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
                     except Exception as e_reg:
                         logger.warning(f"Could not auto-enroll face in mark_attendance: {e_reg}")
 
-        # 3. Format current time
+        # 3. Format current time in 12-hour Standard Indian Time (IST)
         now = india_now()
-        formatted_time = now.strftime("%I:%M %p")
+        formatted_time = india_time_12h(now)
+        if payload.clientTime:
+            c_time = format_time_to_india_12h(payload.clientTime)
+            if c_time:
+                formatted_time = c_time
         today_str = now.strftime("%Y-%m-%d")
 
         # 4. Smart-hours policy (dynamic from Atlas, never hardcoded).
@@ -280,7 +299,8 @@ async def mark_employee_attendance(payload: MarkAttendanceRequest):
 
         if payload.isCheckOut:
             # Check-out operation: finalize from ACTUAL persisted hours.
-            check_in_time = (existing.get("checkIn") if existing else None) or smart_cfg.get("inTime") or smart_cfg.get("standardStartTime") or "11:25 AM"
+            persisted_check_in = existing.get("checkIn") if existing else None
+            check_in_time = format_time_to_india_12h(persisted_check_in) or smart_cfg.get("inTime") or smart_cfg.get("standardStartTime") or "11:25 AM"
             shift = compute_shift(check_in_time, formatted_time, smart_cfg)
             hours_worked = shift["workedStr"]
             final_status, _ctx = finalize_status(check_in_time, formatted_time, smart_cfg)
@@ -878,8 +898,10 @@ async def get_smart_hours_calculation(
         std_out_default = str(cfg.get("outTime") or cfg.get("standardEndTime") or "07:25 PM")
         persisted_in = (today_rec.get("checkIn") if today_rec else None) or std_in_default
         persisted_out = today_rec.get("checkOut") if today_rec else None
+        persisted_in = format_time_to_india_12h(persisted_in) or std_in_default
+        persisted_out = format_time_to_india_12h(persisted_out) if persisted_out else None
         # Actual progress: persisted check-in/out vs wall-clock now.
-        now_str = india_now().strftime("%I:%M %p")
+        now_str = india_time_12h()
         actual_anchor = persisted_out or now_str
         actual = compute_shift(persisted_in, actual_anchor, cfg)
         # If no checkout yet, anchor at now for live In-Progress view.

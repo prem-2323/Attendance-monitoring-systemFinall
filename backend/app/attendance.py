@@ -23,7 +23,7 @@ from backend.database import (
     email_notifications_collection,
 )
 from backend.app.email_service import queue_attendance_emails, process_pending_emails
-from backend.services.timezone import india_now, india_timestamp
+from backend.services.timezone import india_now, india_timestamp, format_time_to_india_12h
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 class CheckInRequest(BaseModel):
@@ -36,6 +36,12 @@ def _clean_doc(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     d = dict(doc)
     if "_id" in d:
         d["_id"] = str(d["_id"])
+    if "checkIn" in d and d["checkIn"]:
+        d["checkIn"] = format_time_to_india_12h(str(d["checkIn"]))
+    if "checkOut" in d and d["checkOut"]:
+        d["checkOut"] = format_time_to_india_12h(str(d["checkOut"]))
+    if "time" in d and d["time"]:
+        d["time"] = format_time_to_india_12h(str(d["time"]))
     return d
 
 

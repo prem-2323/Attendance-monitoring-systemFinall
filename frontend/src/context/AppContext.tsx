@@ -70,6 +70,7 @@ interface AppContextType {
     faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
+    clientTime?: string;
   }) => Promise<{
     success: boolean;
     message: string;
@@ -627,6 +628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     faceImageBase64,
     latitude,
     longitude,
+    clientTime,
   }: {
     employeeId: string;
     isCheckOut?: boolean;
@@ -636,6 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     faceImageBase64?: string;
     latitude?: number | null;
     longitude?: number | null;
+    clientTime?: string;
   }): Promise<{
     success: boolean;
     message: string;
@@ -662,6 +665,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
+      const timeNow12h = clientTime || formatIndiaTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: true });
       const res = await employeeApi.markAttendance({
         employeeId,
         isCheckOut,
@@ -672,17 +676,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         latitude,
         longitude,
         locationName: officeLocation.name,
+        clientTime: timeNow12h,
       });
 
       if (res && res.success && res.record) {
+        const cleanedRecord: AttendanceRecord = {
+          ...res.record,
+          checkIn: formatIndiaClock(res.record.checkIn),
+          checkOut: formatIndiaClock(res.record.checkOut),
+          time: formatIndiaClock(res.record.time || res.record.checkIn),
+        };
+
         setTodayAttendance((prev) => {
           const idx = prev.findIndex((r) => r.employeeId === employeeId);
           if (idx >= 0) {
             const copy = [...prev];
-            copy[idx] = res.record;
+            copy[idx] = cleanedRecord;
             return copy;
           }
-          return [res.record, ...prev];
+          return [cleanedRecord, ...prev];
         });
 
         setNotifications((prev) => [

@@ -205,6 +205,7 @@ export const EmployeeMarkAttendance: React.FC = () => {
     try {
       const geo = geoRef.current;
       const frame = captureFrame();
+      const clientTime12h = formatIndiaTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: true });
       const result = await markAttendance({
         employeeId: currentUser.employeeId,
         isCheckOut: isCheckOutMode,
@@ -214,14 +215,14 @@ export const EmployeeMarkAttendance: React.FC = () => {
         latitude: geo.lat ?? userLat,
         longitude: geo.lng ?? userLng,
         faceImageBase64: frame || undefined,
+        clientTime: clientTime12h,
       });
 
       if (result.success) {
         hasAutoSubmittedRef.current = true;
         setVerificationStage('marked');
         setCheckoutEmailStatus(isCheckOutMode ? result.emailNotification?.detail || '' : '');
-        const timeNow = formatIndiaTime(new Date(), { hour: '2-digit', minute: '2-digit' });
-        setMarkedTimestamp(timeNow);
+        setMarkedTimestamp(clientTime12h);
       } else {
         setErrorMessage(result.message);
         setVerificationStage('scanning');
